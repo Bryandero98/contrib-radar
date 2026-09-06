@@ -21,7 +21,19 @@ export type DrizzleDb = NodePgDatabase<typeof schema>;
         if (!process.env.DATABASE_URL) {
           throw new Error('DATABASE_URL is required (see .env.example).');
         }
-        return new Pool({ connectionString: process.env.DATABASE_URL });
+        return new Pool({
+          connectionString: process.env.DATABASE_URL,
+          // Managed Postgres (Render, Neon, Supabase, ...) requires SSL,
+          // with a cert chain from a private/internal CA that isn't in
+          // Node's default trust store - rejectUnauthorized:false is the
+          // standard, documented way to connect to these without pinning
+          // a specific CA cert. Local Docker Postgres has no SSL at all,
+          // so this only kicks in for a real deployment.
+          ssl:
+            process.env.NODE_ENV === 'production'
+              ? { rejectUnauthorized: false }
+              : undefined,
+        });
       },
     },
     {
