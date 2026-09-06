@@ -1,0 +1,20 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# Connect this repo on Render's dashboard ("New > Blueprint") and it reads
+# this file automatically; DATABASE_URL/GITHUB_TOKEN/GEMINI_API_KEY are
+# marked sync: false so Render prompts for them once instead of
+# committing secrets here.
+services:
+  - type: web
+    name: contrib-radar
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PORT
+        value: 3000

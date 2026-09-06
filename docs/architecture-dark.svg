@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 620" role="img" aria-label="Diagram: a browser dashboard or an MCP-connected agent both call contrib-radar's services, which fetch issues and cross-referencing PRs from GitHub's GraphQL API, optionally classify maintainer sentiment through Gemini (best-effort), score them with a pure deterministic engine, and read or write the scored snapshot in Postgres.">
+  <style>
+    text { font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; fill: #f1ead9; }
+    .mono { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; }
+    .title { font-weight: 600; }
+    .label { fill: #a89a80; }
+  </style>
+  <defs>
+    <marker id="cr-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+    </marker>
+  </defs>
+
+  <!-- clients, stacked left -->
+  <g>
+    <rect x="40" y="110" width="210" height="100" rx="5" fill="#2c2438" stroke="#b48fd6" stroke-width="1.5"></rect>
+    <text x="145" y="150" text-anchor="middle" class="title" font-size="15.5">MCP client</text>
+    <text x="145" y="174" text-anchor="middle" class="label mono" font-size="11">e.g. Claude Code</text>
+    <text x="145" y="190" text-anchor="middle" class="label mono" font-size="11">via MCP tools</text>
+  </g>
+  <g>
+    <rect x="40" y="260" width="210" height="100" rx="5" fill="#1e1a13" stroke="#f1ead9" stroke-width="1.5"></rect>
+    <text x="145" y="300" text-anchor="middle" class="title" font-size="15.5">Dashboard</text>
+    <text x="145" y="324" text-anchor="middle" class="label mono" font-size="11">human, in a browser</text>
+    <text x="145" y="340" text-anchor="middle" class="label mono" font-size="11">via HTTP</text>
+  </g>
+
+  <!-- external sources, above services -->
+  <g>
+    <rect x="370" y="20" width="210" height="90" rx="5" fill="#1e1a13" stroke="#f1ead9" stroke-width="1.5"></rect>
+    <text x="475" y="52" text-anchor="middle" class="title mono" font-size="13">GitHub GraphQL</text>
+    <text x="475" y="76" text-anchor="middle" class="label mono" font-size="11">required, rate-limited</text>
+  </g>
+  <g>
+    <rect x="610" y="20" width="210" height="90" rx="5" fill="#1e1a13" stroke="#f1ead9" stroke-width="1.4" stroke-dasharray="4 3"></rect>
+    <text x="715" y="52" text-anchor="middle" class="title mono" font-size="13">Gemini</text>
+    <text x="715" y="76" text-anchor="middle" class="label mono" font-size="11">best-effort sentiment</text>
+  </g>
+
+  <g stroke="currentColor" fill="none" color="#f1ead9">
+    <line x1="470" y1="110" x2="470" y2="164" stroke-width="1.4" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="386" y="140" text-anchor="start" class="mono" font-size="10.5" fill="#f1ead9">fetch issues + PRs</text>
+
+  <g stroke="currentColor" fill="none" color="#a89a80" stroke-dasharray="3 4">
+    <line x1="715" y1="110" x2="560" y2="164" stroke-width="1.4" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="620" y="140" text-anchor="start" class="mono" font-size="10.5" fill="#a89a80">classify sentiment</text>
+
+  <!-- services -->
+  <g>
+    <rect x="380" y="166" width="230" height="150" rx="5" fill="#1a2e2b" stroke="#6cc4ba" stroke-width="1.5"></rect>
+    <text x="495" y="204" text-anchor="middle" class="title" font-size="15.5">services</text>
+    <text x="495" y="228" text-anchor="middle" class="label mono" font-size="10.5">RefreshService</text>
+    <text x="495" y="244" text-anchor="middle" class="label mono" font-size="10.5">ScoringService (pure)</text>
+    <text x="495" y="260" text-anchor="middle" class="label mono" font-size="10.5">WatchedRepos · Issues</text>
+    <text x="495" y="284" text-anchor="middle" class="label mono" font-size="10">+ 5-min refresh cooldown</text>
+  </g>
+
+  <!-- postgres -->
+  <g>
+    <rect x="720" y="166" width="260" height="150" rx="5" fill="#1a2e2b" stroke="#6cc4ba" stroke-width="1.5"></rect>
+    <text x="850" y="208" text-anchor="middle" class="title" font-size="15.5">Postgres</text>
+    <text x="850" y="236" text-anchor="middle" class="label mono" font-size="11">watched_repos →</text>
+    <text x="850" y="252" text-anchor="middle" class="label mono" font-size="11">issue_scores (upsert)</text>
+    <text x="850" y="276" text-anchor="middle" class="label mono" font-size="10.5">score + reasons (jsonb)</text>
+  </g>
+
+  <!-- client -> services -->
+  <g stroke="currentColor" fill="none" color="#b48fd6">
+    <line x1="250" y1="170" x2="376" y2="212" stroke-width="1.5" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="266" y="228" text-anchor="start" class="mono" font-size="10.5" fill="#b48fd6">calls a tool</text>
+
+  <g stroke="currentColor" fill="none" color="#f1ead9">
+    <line x1="250" y1="300" x2="376" y2="264" stroke-width="1.5" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="270" y="322" text-anchor="start" class="mono" font-size="10.5">HTTP request</text>
+
+  <!-- services <-> postgres -->
+  <g stroke="currentColor" fill="none" color="#6cc4ba">
+    <line x1="612" y1="222" x2="716" y2="222" stroke-width="1.5" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="664" y="204" text-anchor="middle" class="mono" font-size="10.5" fill="#6cc4ba">writes</text>
+
+  <g stroke="currentColor" fill="none" color="#6cc4ba">
+    <line x1="716" y1="266" x2="612" y2="266" stroke-width="1.5" marker-end="url(#cr-arrow)"></line>
+  </g>
+  <text x="664" y="288" text-anchor="middle" class="mono" font-size="10.5" fill="#6cc4ba">reads (cooldown snapshot)</text>
+
+  <!-- return path -->
+  <g stroke="currentColor" fill="none" color="#a89a80" stroke-dasharray="3 4">
+    <path d="M 495 316 L 495 560 L 145 560 L 145 364" stroke-width="1.3" marker-end="url(#cr-arrow)"></path>
+  </g>
+  <text x="320" y="580" text-anchor="middle" class="mono" font-size="10.5" fill="#a89a80">scored issues — score + reasons + sentiment</text>
+</svg>
