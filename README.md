@@ -76,6 +76,7 @@ curl localhost:3000/repos/<id>/issues
 
 | Method | Path | Does |
 |---|---|---|
+| `GET` | `/` | Redirects to `/dashboard` |
 | `GET` | `/repos` | List every watched repo |
 | `POST` | `/repos` | Watch a repo (`{ owner, name, labelFilter? }`) — idempotent |
 | `GET` | `/repos/:id` | Read one watched repo |

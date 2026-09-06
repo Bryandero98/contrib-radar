@@ -25,11 +25,11 @@ describeIfDb('AppController (e2e)', () => {
     await app.close();
   });
 
-  it('/ (GET)', () => {
+  it('/ (GET) redirects to the dashboard', () => {
     return request(app.getHttpServer())
       .get('/')
-      .expect(200)
-      .expect(/contrib-radar is running/);
+      .expect(302)
+      .expect('Location', '/dashboard');
   });
 
   it('/health (GET) reports ok with a reachable database', () => {
