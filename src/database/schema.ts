@@ -85,6 +85,11 @@ export const issueScores = pgTable(
     openCompetingPrCount: integer('open_competing_pr_count')
       .notNull()
       .default(0),
+    // Draft PRs referencing the issue - tracked separately from
+    // openCompetingPrCount because a draft is a materially weaker "someone's
+    // already on this" signal than a ready-for-review PR (see
+    // scoring/signals/competing-prs.signal.ts).
+    openDraftPrCount: integer('open_draft_pr_count').notNull().default(0),
     abandonedPrCount: integer('abandoned_pr_count').notNull().default(0),
     // Null means the sentiment classifier didn't run or failed - the score
     // still exists (classifySafely degrades to deterministic-only), it

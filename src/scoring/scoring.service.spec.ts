@@ -172,6 +172,64 @@ describe('ScoringService', () => {
       expect(result.openCompetingPrCount).toBe(10);
     });
 
+    it('penalizes a draft competing PR more lightly than a ready-for-review one', () => {
+      const ready = service.score({
+        issue: baseIssue({
+          crossReferencingPullRequests: [
+            {
+              number: 1,
+              url: 'https://github.com/o/r/pull/1',
+              state: 'OPEN',
+              isDraft: false,
+              merged: false,
+            },
+          ],
+        }),
+        sentiment: null,
+      });
+      const draft = service.score({
+        issue: baseIssue({
+          crossReferencingPullRequests: [
+            {
+              number: 2,
+              url: 'https://github.com/o/r/pull/2',
+              state: 'OPEN',
+              isDraft: true,
+              merged: false,
+            },
+          ],
+        }),
+        sentiment: null,
+      });
+
+      expect(reasonCodes(ready.reasons)).toContain('OPEN_COMPETING_PRS');
+      expect(reasonCodes(draft.reasons)).toContain('OPEN_DRAFT_PRS');
+      expect(ready.score).toBeLessThan(draft.score);
+      expect(ready.openCompetingPrCount).toBe(1);
+      expect(ready.openDraftPrCount).toBe(0);
+      expect(draft.openCompetingPrCount).toBe(0);
+      expect(draft.openDraftPrCount).toBe(1);
+    });
+
+    it('caps the draft-PR penalty the same way as the ready-PR one', () => {
+      const manyDraftPrs = Array.from({ length: 10 }, (_, i) => ({
+        number: i,
+        url: `https://github.com/o/r/pull/${i}`,
+        state: 'OPEN' as const,
+        isDraft: true,
+        merged: false,
+      }));
+
+      const result = service.score({
+        issue: baseIssue({ crossReferencingPullRequests: manyDraftPrs }),
+        sentiment: null,
+      });
+
+      const reason = result.reasons.find((r) => r.code === 'OPEN_DRAFT_PRS');
+      expect(reason?.params?.delta).toBe(-30); // openDraftPrCap
+      expect(result.openDraftPrCount).toBe(10);
+    });
+
     it('treats a merged referencing PR as a near-total "already resolved" signal', () => {
       const result = service.score({
         issue: baseIssue({

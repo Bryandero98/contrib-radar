@@ -26,7 +26,7 @@ always first:
 | Signal | What it checks |
 |---|---|
 | Assignee | Present and recently active (heavy penalty) vs. present but stale (light penalty) |
-| Competing PRs | Open PRs referencing the issue (capped penalty); a **merged** one is treated as near-certain resolution |
+| Competing PRs | Open, ready-for-review PRs referencing the issue (capped penalty) — draft PRs are tracked separately and penalized more lightly, since a draft is a materially weaker "someone's already on this" signal than a ready one; a **merged** PR is treated as near-certain resolution |
 | Abandoned attempts | Closed-without-merging PRs — a real difficulty signal, not noise |
 | Staleness | Tiered penalty by days since the issue last moved |
 | Blocking labels | `wontfix`, `duplicate`, `invalid`, `blocked` |

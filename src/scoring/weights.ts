@@ -17,6 +17,12 @@ export const WEIGHTS = {
 
   openCompetingPrPenalty: 35,
   openCompetingPrCap: 55,
+  // A draft PR referencing the issue is a much weaker "someone's already on
+  // this" signal than a ready-for-review one - plenty of drafts are
+  // abandoned exploration that never gets marked ready, so this is a softer
+  // penalty than openCompetingPrPenalty, not the same one applied twice.
+  openDraftPrPenalty: 15,
+  openDraftPrCap: 30,
   mergedPrResolvedPenalty: 70,
   abandonedAttemptPenalty: 15,
   abandonedAttemptCap: 45,

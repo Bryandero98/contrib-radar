@@ -1,0 +1,1 @@
+ALTER TABLE "issue_scores" ADD COLUMN "open_draft_pr_count" integer DEFAULT 0 NOT NULL;

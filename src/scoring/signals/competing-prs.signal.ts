@@ -3,21 +3,27 @@ import { WEIGHTS } from '../weights';
 import type { SignalResult } from './signal-result.interface';
 
 export interface CompetingPrCounts {
+  /** Open and ready for review - the strongest "someone's already on this" signal. */
   open: number;
+  /** Open but still a draft - real but weaker competition than a ready PR. */
+  openDraft: number;
   abandoned: number;
   resolvedByMergedPr: boolean;
 }
 
-// Shared with scoring.service, which persists open/abandoned counts onto
-// issue_scores regardless of whether they moved the score this refresh.
+// Shared with scoring.service, which persists open/draft/abandoned counts
+// onto issue_scores regardless of whether they moved the score this refresh.
 export function countCompetingPrs(issue: GithubIssue): CompetingPrCounts {
   let open = 0;
+  let openDraft = 0;
   let abandoned = 0;
   let resolvedByMergedPr = false;
 
   for (const pr of issue.crossReferencingPullRequests) {
     if (pr.merged) {
       resolvedByMergedPr = true;
+    } else if (pr.state === 'OPEN' && pr.isDraft) {
+      openDraft++;
     } else if (pr.state === 'OPEN') {
       open++;
     } else if (pr.state === 'CLOSED') {
@@ -25,7 +31,7 @@ export function countCompetingPrs(issue: GithubIssue): CompetingPrCounts {
     }
   }
 
-  return { open, abandoned, resolvedByMergedPr };
+  return { open, openDraft, abandoned, resolvedByMergedPr };
 }
 
 export function assessCompetingPrsSignal(issue: GithubIssue): SignalResult {
@@ -55,6 +61,19 @@ export function assessCompetingPrsSignal(issue: GithubIssue): SignalResult {
       code: 'OPEN_COMPETING_PRS',
       severity: 'warning',
       params: { delta: -openPenalty, count: counts.open },
+    });
+  }
+
+  if (counts.openDraft > 0) {
+    const draftPenalty = Math.min(
+      counts.openDraft * WEIGHTS.openDraftPrPenalty,
+      WEIGHTS.openDraftPrCap,
+    );
+    penalty += draftPenalty;
+    reasons.push({
+      code: 'OPEN_DRAFT_PRS',
+      severity: 'info',
+      params: { delta: -draftPenalty, count: counts.openDraft },
     });
   }
 

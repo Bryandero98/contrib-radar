@@ -101,6 +101,7 @@ export class RefreshService {
       githubUpdatedAt: new Date(issue.updatedAt),
       hasAssignee: result.hasAssignee,
       openCompetingPrCount: result.openCompetingPrCount,
+      openDraftPrCount: result.openDraftPrCount,
       abandonedPrCount: result.abandonedPrCount,
       sentimentLabel: sentiment?.label ?? null,
       sentimentRationale: sentiment?.rationale ?? null,

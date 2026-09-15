@@ -21,6 +21,7 @@ export interface ScoringResult {
   reasons: ScoreReason[];
   hasAssignee: boolean;
   openCompetingPrCount: number;
+  openDraftPrCount: number;
   abandonedPrCount: number;
 }
 
@@ -64,6 +65,7 @@ export class ScoringService {
       reasons,
       hasAssignee: issue.assigneeLogins.length > 0,
       openCompetingPrCount: competing.open,
+      openDraftPrCount: competing.openDraft,
       abandonedPrCount: competing.abandoned,
     };
   }
