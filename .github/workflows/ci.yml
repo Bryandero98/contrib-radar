@@ -8,6 +8,28 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Same credentials as docker-compose.yml's local postgres service, so
+    # DATABASE_URL below matches .env.example exactly. Without this service,
+    # every describeIfDb-gated suite (health, watched-repos, refresh, both
+    # e2e specs) silently skips itself in CI - CONTRIBUTING.md's "no mocks
+    # on the database" promise only holds if DATABASE_URL is actually set
+    # here, not just documented as something a contributor sets locally.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: contrib_radar
+          POSTGRES_PASSWORD: contrib_radar
+          POSTGRES_DB: contrib_radar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://contrib_radar:contrib_radar@localhost:5432/contrib_radar
     strategy:
       matrix:
         node-version: [22.x, 24.x]
@@ -20,5 +42,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - run: npm run db:migrate
       - run: npm test
       - run: npm run test:e2e
