@@ -157,6 +157,51 @@ describeIfDb('RefreshService', () => {
     expect(rows).toHaveLength(1);
   });
 
+  it('drops stale issue_scores rows for issues no longer in the fetch result (closed, unlabeled, reassigned)', async () => {
+    // Real bug found in production (argoproj/argo-cd#3040): a maintainer
+    // closed/rejected the issue, but its issue_scores row - scored while it
+    // was still open - never got touched again because the states:OPEN
+    // GraphQL query correctly stopped returning it. It sat there forever
+    // with a stale score of 100, outranking every real open opportunity.
+    githubClient.issues = [fakeIssue({ number: 1 }), fakeIssue({ number: 2 })];
+    const service = await buildService();
+    await service.refreshWatchedRepo(watchedRepoId);
+    await pool.query(
+      `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
+      [watchedRepoId],
+    );
+    // #2 closed (or dropped the label) since the last refresh: only #1 comes back now.
+    githubClient.issues = [fakeIssue({ number: 1 })];
+
+    const result = await service.refreshWatchedRepo(watchedRepoId);
+
+    expect(result).toEqual({ refreshed: true, issueCount: 1 });
+    const rows = await db
+      .select()
+      .from(issueScores)
+      .where(eq(issueScores.watchedRepoId, watchedRepoId));
+    expect(rows.map((r) => r.issueNumber)).toEqual([1]);
+  });
+
+  it('clears every issue_scores row when the fetch returns no issues at all', async () => {
+    const service = await buildService();
+    await service.refreshWatchedRepo(watchedRepoId);
+    await pool.query(
+      `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
+      [watchedRepoId],
+    );
+    githubClient.issues = [];
+
+    const result = await service.refreshWatchedRepo(watchedRepoId);
+
+    expect(result).toEqual({ refreshed: true, issueCount: 0 });
+    const rows = await db
+      .select()
+      .from(issueScores)
+      .where(eq(issueScores.watchedRepoId, watchedRepoId));
+    expect(rows).toHaveLength(0);
+  });
+
   it('returns the cached snapshot without calling GitHub again inside the cooldown window', async () => {
     const service = await buildService();
     await service.refreshWatchedRepo(watchedRepoId);

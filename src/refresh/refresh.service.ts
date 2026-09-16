@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../database/database.module';
 import { issueScores, watchedRepos } from '../database/schema';
 import { GITHUB_CLIENT } from '../github/github.module';
@@ -63,6 +63,24 @@ export class RefreshService {
     for (const issue of issues) {
       await this.scoreAndUpsert(watchedRepoId, issue);
     }
+
+    // issue_scores is a snapshot of "currently open and matching the label
+    // filter" (see schema.ts), not a log - an issue that got closed, lost
+    // the label, or was reassigned out of the filter since the last refresh
+    // simply won't be in `issues` anymore, and without this it would sit
+    // here forever with its last-known score, silently lying about being
+    // a live opportunity.
+    const currentIssueNumbers = issues.map((issue) => issue.number);
+    await this.db
+      .delete(issueScores)
+      .where(
+        currentIssueNumbers.length > 0
+          ? and(
+              eq(issueScores.watchedRepoId, watchedRepoId),
+              notInArray(issueScores.issueNumber, currentIssueNumbers),
+            )
+          : eq(issueScores.watchedRepoId, watchedRepoId),
+      );
 
     await this.db
       .update(watchedRepos)
