@@ -1,7 +1,17 @@
-import { Controller, Delete, Get, Post, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Request, Response } from 'express';
+import { ApiKeyAuthGuard } from '../auth/api-key-auth.guard';
+import type { AuthenticatedUser } from '../auth/types';
 import { McpServerFactory } from './mcp-server.factory';
 
 const JSON_RPC_METHOD_NOT_ALLOWED = {
@@ -23,13 +33,14 @@ const JSON_RPC_INTERNAL_ERROR = {
 // an already-stateless HTTP service, so there's no session state worth
 // the bookkeeping cost of a persistent per-client session.
 @ApiExcludeController()
+@UseGuards(ApiKeyAuthGuard)
 @Controller('mcp')
 export class McpController {
   constructor(private readonly mcpServerFactory: McpServerFactory) {}
 
   @Post()
   async handlePost(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const server = this.mcpServerFactory.create();
+    const server = this.mcpServerFactory.create(req.user as AuthenticatedUser);
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

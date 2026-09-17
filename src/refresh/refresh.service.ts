@@ -37,11 +37,19 @@ export class RefreshService {
     private readonly scoringService: ScoringService,
   ) {}
 
-  async refreshWatchedRepo(watchedRepoId: string): Promise<RefreshResult> {
+  async refreshWatchedRepo(
+    watchedRepoId: string,
+    userId: string,
+  ): Promise<RefreshResult> {
     const [repo] = await this.db
       .select()
       .from(watchedRepos)
-      .where(eq(watchedRepos.id, watchedRepoId));
+      .where(
+        and(
+          eq(watchedRepos.id, watchedRepoId),
+          eq(watchedRepos.userId, userId),
+        ),
+      );
     if (!repo) {
       throw new NotFoundException(`no watched repo with id "${watchedRepoId}"`);
     }

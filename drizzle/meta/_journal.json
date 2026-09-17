@@ -15,6 +15,20 @@
       "when": 1789438431437,
       "tag": "0001_woozy_next_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789656962470,
+      "tag": "0002_brief_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789657654804,
+      "tag": "0003_violet_arclight",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,14 @@
-import { Controller, HttpCode, Param, Post } from '@nestjs/common';
+import { Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtCookieAuthGuard } from '../auth/jwt-cookie-auth.guard';
+import type { AuthenticatedUser } from '../auth/types';
 import { WRITE_THROTTLE } from '../common/write-throttle';
 import { RefreshService } from './refresh.service';
 
 @ApiTags('refresh')
+@UseGuards(JwtCookieAuthGuard)
 @Controller('repos')
 export class RefreshController {
   constructor(private readonly refreshService: RefreshService) {}
@@ -20,7 +24,7 @@ export class RefreshController {
     description:
       '{ refreshed: boolean, issueCount: number } - refreshed:false means the cooldown was still active',
   })
-  refresh(@Param('id') id: string) {
-    return this.refreshService.refreshWatchedRepo(id);
+  refresh(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.refreshService.refreshWatchedRepo(id, user.id);
   }
 }

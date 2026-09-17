@@ -1,11 +1,26 @@
+export interface DashboardUser {
+  githubLogin: string;
+  tier: 'free' | 'pro';
+}
+
 // A single self-contained page - no build step, no external dependencies,
 // no framework - deliberately, same constraint as packetforge's own
 // dashboard. Every request it makes is to contrib-radar's own already-
 // existing REST API (GET/POST /repos, POST /repos/:id/refresh,
-// GET /repos/:id/issues) - no new backend surface exists just for this
-// page. i18n is a plain client-side dictionary (EN/ES) swapped via one
-// data-i18n attribute pass.
-export const DASHBOARD_HTML = `<!DOCTYPE html>
+// GET /repos/:id/issues) - plus /billing/checkout and /users/me/api-key,
+// added alongside GitHub OAuth login. i18n is a plain client-side
+// dictionary (EN/ES) swapped via one data-i18n attribute pass.
+//
+// A function, not a plain string constant, so the logged-in user's login
+// and tier can be rendered server-side directly into the HTML - avoids an
+// extra client-side fetch and the flash-of-unauthenticated-content that
+// would come with it. Safe to interpolate `user.githubLogin` unescaped:
+// GitHub usernames are restricted to `[a-zA-Z0-9-]` (enforced by GitHub
+// itself, not by this code) - no HTML-escaping helper exists anywhere in
+// this project, so this is a deliberate reliance on that upstream
+// constraint, not an oversight.
+export function renderDashboardHtml(user: DashboardUser): string {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -77,6 +92,18 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   button.ghost { background: transparent; }
   button.ghost:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
   #headerRight { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #userInfo { font-size: 13px; color: var(--text-dim); white-space: nowrap; }
+  .tier-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .tier-free { color: var(--text-dim); background: var(--panel-2); border: 1px solid var(--border); }
+  .tier-pro { color: var(--score-high); background: var(--score-high-bg); }
   #lastRefreshed { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
   .spinner {
     width: 12px; height: 12px;
@@ -103,6 +130,27 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   #addRepoForm.open { display: flex; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  #apiKeyPanel {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 14px 20px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  #apiKeyPanel.open { display: flex; }
+  #apiKeyPanel p { margin: 0; font-size: 13px; color: var(--text-dim); }
+  #apiKeyDisplay {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
 
   main { padding: 20px; max-width: 1100px; margin: 0 auto; }
   #emptyState, #loadingState {
@@ -173,9 +221,25 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   </button>
   <span id="lastRefreshed"></span>
   <div id="headerRight">
+    <span id="userInfo">${user.githubLogin} · <span id="userTierBadge" class="tier-badge tier-${user.tier}">${user.tier}</span></span>
+    ${
+      user.tier === 'free'
+        ? '<button id="upgradeBtn" type="button" data-i18n="upgrade">Upgrade</button>'
+        : ''
+    }
+    <button id="apiKeyToggle" class="ghost" type="button" data-i18n="apiKey">API Key</button>
+    <form id="logoutForm" method="post" action="/auth/logout" style="display:inline">
+      <button type="submit" class="ghost" data-i18n="logout">Logout</button>
+    </form>
     <button id="langToggle" class="ghost" type="button">ES</button>
   </div>
 </header>
+
+<div id="apiKeyPanel">
+  <p data-i18n="apiKeyHint">Use this key as the <code>X-Api-Key</code> header when calling the MCP server.</p>
+  <button id="apiKeyGenerate" type="button" data-i18n="apiKeyGenerate">Generate new key</button>
+  <pre id="apiKeyDisplay" style="display:none"></pre>
+</div>
 
 <div id="addRepoForm">
   <div class="field">
@@ -235,6 +299,13 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
       lastRefreshedNever: 'never refreshed',
       lastRefreshedAt: function (rel) { return 'refreshed ' + rel; },
       cooldownActive: function (rel) { return 'cooldown active - showing snapshot from ' + rel; },
+      upgrade: 'Upgrade',
+      apiKey: 'API Key',
+      apiKeyHint: 'Use this key as the X-Api-Key header when calling the MCP server.',
+      apiKeyGenerate: 'Generate new key',
+      logout: 'Logout',
+      freeTierLimitError: 'Free tier is limited to 3 watched repos - upgrade to add more.',
+      genericError: 'Something went wrong - please try again.',
     },
     es: {
       selectRepo: 'Selecciona un repo observado',
@@ -255,6 +326,13 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
       lastRefreshedNever: 'nunca actualizado',
       lastRefreshedAt: function (rel) { return 'actualizado ' + rel; },
       cooldownActive: function (rel) { return 'cooldown activo - mostrando foto de ' + rel; },
+      upgrade: 'Mejorar plan',
+      apiKey: 'API Key',
+      apiKeyHint: 'Usa esta key como header X-Api-Key al llamar al servidor MCP.',
+      apiKeyGenerate: 'Generar nueva key',
+      logout: 'Cerrar sesión',
+      freeTierLimitError: 'El plan gratis está limitado a 3 repos observados - mejora tu plan para agregar más.',
+      genericError: 'Algo salió mal - intenta de nuevo.',
     },
   };
 
@@ -315,6 +393,11 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
     emptyState: document.getElementById('emptyState'),
     tableWrap: document.getElementById('tableWrap'),
     issuesBody: document.getElementById('issuesBody'),
+    upgradeBtn: document.getElementById('upgradeBtn'),
+    apiKeyToggle: document.getElementById('apiKeyToggle'),
+    apiKeyPanel: document.getElementById('apiKeyPanel'),
+    apiKeyGenerate: document.getElementById('apiKeyGenerate'),
+    apiKeyDisplay: document.getElementById('apiKeyDisplay'),
   };
 
   function t(key) { return I18N[lang][key]; }
@@ -515,12 +598,48 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
       : undefined;
     const body = { owner: owner, name: name };
     if (labelFilter) body.labelFilter = labelFilter;
-    const created = await api('/repos', { method: 'POST', body: JSON.stringify(body) });
+    let created;
+    try {
+      created = await api('/repos', { method: 'POST', body: JSON.stringify(body) });
+    } catch (err) {
+      alert(String(err).indexOf('403') !== -1 ? t('freeTierLimitError') : t('genericError'));
+      return;
+    }
     el.repoOwner.value = '';
     el.repoName.value = '';
     el.repoLabels.value = '';
     el.addRepoForm.classList.remove('open');
     await loadRepos(created.id);
+  });
+
+  if (el.upgradeBtn) {
+    el.upgradeBtn.addEventListener('click', async function () {
+      el.upgradeBtn.disabled = true;
+      try {
+        const result = await api('/billing/checkout', { method: 'POST' });
+        window.location.href = result.url;
+      } catch (err) {
+        alert(t('genericError'));
+        el.upgradeBtn.disabled = false;
+      }
+    });
+  }
+
+  el.apiKeyToggle.addEventListener('click', function () {
+    el.apiKeyPanel.classList.toggle('open');
+  });
+
+  el.apiKeyGenerate.addEventListener('click', async function () {
+    el.apiKeyGenerate.disabled = true;
+    try {
+      const result = await api('/users/me/api-key', { method: 'POST' });
+      el.apiKeyDisplay.textContent = result.apiKey;
+      el.apiKeyDisplay.style.display = 'block';
+    } catch (err) {
+      alert(t('genericError'));
+    } finally {
+      el.apiKeyGenerate.disabled = false;
+    }
   });
 
   el.refreshBtn.addEventListener('click', async function () {
@@ -568,3 +687,4 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
 </body>
 </html>
 `;
+}

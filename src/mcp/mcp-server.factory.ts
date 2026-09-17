@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import * as z from 'zod';
+import type { AuthenticatedUser } from '../auth/types';
 import { IssuesService } from '../issues/issues.service';
 import { RefreshService } from '../refresh/refresh.service';
 import { WatchedReposService } from '../watched-repos/watched-repos.service';
@@ -32,15 +33,17 @@ export class McpServerFactory {
     private readonly issuesService: IssuesService,
   ) {}
 
-  create(): McpServer {
+  create(user: AuthenticatedUser): McpServer {
     const server = new McpServer({ name: 'contrib-radar', version: '0.0.1' });
 
     server.registerTool(
       'list_watched_repos',
-      { description: 'List every repo contrib-radar is watching.' },
+      { description: "List every repo this API key's owner is watching." },
       async () => {
         try {
-          return textResult(await this.watchedReposService.listWatchedRepos());
+          return textResult(
+            await this.watchedReposService.listWatchedRepos(user.id),
+          );
         } catch (error) {
           return errorResult(error);
         }
@@ -67,6 +70,8 @@ export class McpServerFactory {
         try {
           return textResult(
             await this.watchedReposService.addWatchedRepo(
+              user.id,
+              user.tier,
               owner,
               name,
               labelFilter,
@@ -92,7 +97,10 @@ export class McpServerFactory {
       async ({ watchedRepoId }) => {
         try {
           return textResult(
-            await this.refreshService.refreshWatchedRepo(watchedRepoId),
+            await this.refreshService.refreshWatchedRepo(
+              watchedRepoId,
+              user.id,
+            ),
           );
         } catch (error) {
           return errorResult(error);
@@ -117,6 +125,10 @@ export class McpServerFactory {
       },
       async ({ watchedRepoId, sort }) => {
         try {
+          // issue_scores has no user_id of its own - ownership is proven by
+          // successfully loading the parent watched_repos row first, same
+          // as IssuesController.
+          await this.watchedReposService.getWatchedRepo(watchedRepoId, user.id);
           return textResult(
             await this.issuesService.listScoredIssues(watchedRepoId, sort),
           );

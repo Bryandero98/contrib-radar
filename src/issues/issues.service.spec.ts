@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import * as schema from '../database/schema';
 import {
   issueScores,
+  users,
   watchedRepos,
   type ScoreReason,
 } from '../database/schema';
@@ -18,15 +19,23 @@ describeIfDb('IssuesService', () => {
   let db: ReturnType<typeof drizzle<typeof schema>>;
   let service: IssuesService;
   let watchedRepoId: string;
+  let userId: string;
 
   beforeEach(async () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     db = drizzle(pool, { schema });
     service = new IssuesService(db);
     watchedRepoId = randomUUID();
+    userId = randomUUID();
 
+    await db.insert(users).values({
+      id: userId,
+      githubId: `gh-${userId}`,
+      githubLogin: 'octocat',
+    });
     await db.insert(watchedRepos).values({
       id: watchedRepoId,
+      userId,
       owner: 'o',
       name: 'r',
       labelFilter: ['good first issue'],
@@ -62,6 +71,7 @@ describeIfDb('IssuesService', () => {
     await pool.query(`DELETE FROM watched_repos WHERE id = $1`, [
       watchedRepoId,
     ]);
+    await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
     await pool.end();
   });
 

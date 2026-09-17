@@ -2,6 +2,8 @@ import { MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
+import { AuthModule } from './auth/auth.module';
+import { BillingModule } from './billing/billing.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
 import { GithubModule } from './github/github.module';
@@ -11,6 +13,7 @@ import { RequestLoggerMiddleware } from './logging/request-logger.middleware';
 import { McpModule } from './mcp/mcp.module';
 import { RefreshModule } from './refresh/refresh.module';
 import { SentimentModule } from './sentiment/sentiment.module';
+import { UsersModule } from './users/users.module';
 import { WatchedReposModule } from './watched-repos/watched-repos.module';
 
 @Module({
@@ -22,6 +25,9 @@ import { WatchedReposModule } from './watched-repos/watched-repos.module';
     DatabaseModule,
     GithubModule,
     SentimentModule,
+    AuthModule,
+    UsersModule,
+    BillingModule,
     WatchedReposModule,
     RefreshModule,
     IssuesModule,

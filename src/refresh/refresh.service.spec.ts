@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { DRIZZLE } from '../database/database.module';
 import * as schema from '../database/schema';
-import { issueScores, watchedRepos } from '../database/schema';
+import { issueScores, users, watchedRepos } from '../database/schema';
 import type {
   FetchIssuesForScoringParams,
   GithubClient,
@@ -73,13 +73,21 @@ describeIfDb('RefreshService', () => {
   let db: ReturnType<typeof drizzle<typeof schema>>;
   let githubClient: FakeGithubClient;
   let watchedRepoId: string;
+  let userId: string;
 
   beforeEach(async () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     db = drizzle(pool, { schema });
+    userId = randomUUID();
+    await db.insert(users).values({
+      id: userId,
+      githubId: `gh-${userId}`,
+      githubLogin: 'octocat',
+    });
     watchedRepoId = randomUUID();
     await db.insert(watchedRepos).values({
       id: watchedRepoId,
+      userId,
       owner: 'o',
       name: 'r',
       labelFilter: ['good first issue'],
@@ -95,6 +103,7 @@ describeIfDb('RefreshService', () => {
     await pool.query(`DELETE FROM watched_repos WHERE id = $1`, [
       watchedRepoId,
     ]);
+    await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
     await pool.end();
   });
 
@@ -116,7 +125,7 @@ describeIfDb('RefreshService', () => {
   it('fetches issues, scores them, and upserts issue_scores', async () => {
     const service = await buildService();
 
-    const result = await service.refreshWatchedRepo(watchedRepoId);
+    const result = await service.refreshWatchedRepo(watchedRepoId, userId);
 
     expect(result).toEqual({ refreshed: true, issueCount: 1 });
     expect(githubClient.calls).toEqual([
@@ -133,14 +142,22 @@ describeIfDb('RefreshService', () => {
   it('throws NotFoundException for an unknown watched repo id', async () => {
     const service = await buildService();
 
-    await expect(service.refreshWatchedRepo(randomUUID())).rejects.toThrow(
-      /no watched repo/,
-    );
+    await expect(
+      service.refreshWatchedRepo(randomUUID(), userId),
+    ).rejects.toThrow(/no watched repo/);
+  });
+
+  it("throws NotFoundException for another user's watched repo id", async () => {
+    const service = await buildService();
+
+    await expect(
+      service.refreshWatchedRepo(watchedRepoId, randomUUID()),
+    ).rejects.toThrow(/no watched repo/);
   });
 
   it('is idempotent on re-run (upsert, not duplicate rows)', async () => {
     const service = await buildService();
-    await service.refreshWatchedRepo(watchedRepoId);
+    await service.refreshWatchedRepo(watchedRepoId, userId);
     // Bypass the cooldown directly to isolate upsert behavior from
     // cooldown behavior (the latter is tested separately below).
     await pool.query(
@@ -148,7 +165,7 @@ describeIfDb('RefreshService', () => {
       [watchedRepoId],
     );
 
-    await service.refreshWatchedRepo(watchedRepoId);
+    await service.refreshWatchedRepo(watchedRepoId, userId);
 
     const rows = await db
       .select()
@@ -165,7 +182,7 @@ describeIfDb('RefreshService', () => {
     // with a stale score of 100, outranking every real open opportunity.
     githubClient.issues = [fakeIssue({ number: 1 }), fakeIssue({ number: 2 })];
     const service = await buildService();
-    await service.refreshWatchedRepo(watchedRepoId);
+    await service.refreshWatchedRepo(watchedRepoId, userId);
     await pool.query(
       `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
       [watchedRepoId],
@@ -173,7 +190,7 @@ describeIfDb('RefreshService', () => {
     // #2 closed (or dropped the label) since the last refresh: only #1 comes back now.
     githubClient.issues = [fakeIssue({ number: 1 })];
 
-    const result = await service.refreshWatchedRepo(watchedRepoId);
+    const result = await service.refreshWatchedRepo(watchedRepoId, userId);
 
     expect(result).toEqual({ refreshed: true, issueCount: 1 });
     const rows = await db
@@ -185,14 +202,14 @@ describeIfDb('RefreshService', () => {
 
   it('clears every issue_scores row when the fetch returns no issues at all', async () => {
     const service = await buildService();
-    await service.refreshWatchedRepo(watchedRepoId);
+    await service.refreshWatchedRepo(watchedRepoId, userId);
     await pool.query(
       `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
       [watchedRepoId],
     );
     githubClient.issues = [];
 
-    const result = await service.refreshWatchedRepo(watchedRepoId);
+    const result = await service.refreshWatchedRepo(watchedRepoId, userId);
 
     expect(result).toEqual({ refreshed: true, issueCount: 0 });
     const rows = await db
@@ -204,10 +221,10 @@ describeIfDb('RefreshService', () => {
 
   it('returns the cached snapshot without calling GitHub again inside the cooldown window', async () => {
     const service = await buildService();
-    await service.refreshWatchedRepo(watchedRepoId);
+    await service.refreshWatchedRepo(watchedRepoId, userId);
     githubClient.calls = [];
 
-    const result = await service.refreshWatchedRepo(watchedRepoId);
+    const result = await service.refreshWatchedRepo(watchedRepoId, userId);
 
     expect(result.refreshed).toBe(false);
     expect(result.issueCount).toBe(1);
@@ -235,7 +252,7 @@ describeIfDb('RefreshService', () => {
     };
     const service = await buildService(throwingSentiment);
 
-    const result = await service.refreshWatchedRepo(watchedRepoId);
+    const result = await service.refreshWatchedRepo(watchedRepoId, userId);
 
     expect(result.refreshed).toBe(true);
     const [row] = await db

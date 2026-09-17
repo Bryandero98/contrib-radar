@@ -1,0 +1,1 @@
+ALTER TABLE "watched_repos" ALTER COLUMN "user_id" SET NOT NULL;

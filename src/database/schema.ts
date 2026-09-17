@@ -24,6 +24,42 @@ export interface ScoreReason {
 }
 
 /**
+ * A registered account - created/updated on every GitHub OAuth login
+ * (`findOrCreateByGithub`, upserted by `githubId`, so a GitHub username
+ * change doesn't orphan the account). `apiKeyHash` is a sha256 digest of
+ * the raw key shown to the user exactly once when generated - the raw key
+ * itself is never persisted. `tier` gates the free-tier watched-repo cap
+ * (see WatchedReposService.addWatchedRepo); `stripeCustomerId`/
+ * `stripeSubscriptionId` are set once the billing webhook sees a
+ * completed checkout, used to map a later webhook event back to a user.
+ */
+export const userTierEnum = pgEnum('user_tier', ['free', 'pro']);
+
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    githubId: text('github_id').notNull(),
+    githubLogin: text('github_login').notNull(),
+    avatarUrl: text('avatar_url'),
+    tier: userTierEnum('tier').notNull().default('free'),
+    apiKeyHash: text('api_key_hash'),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('users_github_id_idx').on(table.githubId),
+    // Postgres unique indexes ignore NULLs, so any number of users who
+    // haven't generated a key yet (apiKeyHash === null) coexist fine.
+    uniqueIndex('users_api_key_hash_idx').on(table.apiKeyHash),
+    index('users_stripe_customer_id_idx').on(table.stripeCustomerId),
+  ],
+);
+
+/**
  * A repo (owner/name) the user wants scored issues for. `labelFilter` is
  * an array (not a single string) so a repo can watch more than one label
  * later without a migration - defaults to the one label everyone actually
@@ -33,6 +69,9 @@ export const watchedRepos = pgTable(
   'watched_repos',
   {
     id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     owner: text('owner').notNull(),
     name: text('name').notNull(),
     labelFilter: text('label_filter')
@@ -49,6 +88,7 @@ export const watchedRepos = pgTable(
   },
   (table) => [
     index('watched_repos_owner_name_idx').on(table.owner, table.name),
+    index('watched_repos_user_id_idx').on(table.userId),
   ],
 );
 
