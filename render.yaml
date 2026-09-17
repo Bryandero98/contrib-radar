@@ -6,13 +6,19 @@
 #
 # Migrations do NOT run automatically on deploy. database.module.ts
 # deliberately never auto-migrates on boot (concurrent instances racing to
-# migrate the same live DB is the exact footgun that avoids), and Render's
-# preDeployCommand - which would otherwise run them as a separate step
-# before the new version goes live - requires a paid instance type, not
-# available on this service's `plan: free`. After deploying any commit
-# that changes src/database/schema.ts, run the migration by hand once:
-# Render dashboard -> this service -> Shell tab -> `npm run db:migrate`
-# (DATABASE_URL is already set in that shell's environment).
+# migrate the same live DB is the exact footgun that avoids), and both of
+# Render's built-in ways to run one as a separate step - preDeployCommand
+# and the Shell tab - require a paid instance type, not available on this
+# service's `plan: free`. After deploying any commit that changes
+# src/database/schema.ts, run the migration from a local machine instead,
+# against the database's *External* Database URL (Render dashboard -> the
+# Postgres instance -> Info tab; the Internal URL only resolves inside
+# Render's network):
+#   DATABASE_URL=<external URL> npm run db:migrate
+# `drizzle-kit migrate`/`pg` can hang indefinitely negotiating SSL when it
+# parses sslmode from the connection string on this host - if that happens,
+# connect with an explicit `ssl: { rejectUnauthorized: false }` config
+# object instead of relying on the URL's sslmode param.
 services:
   - type: web
     name: contrib-radar
