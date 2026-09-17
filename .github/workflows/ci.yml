@@ -30,6 +30,20 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://contrib_radar:contrib_radar@localhost:5432/contrib_radar
+      # Placeholders, not real credentials: AuthModule/BillingModule's
+      # provider factories throw at boot if these are unset at all (same
+      # fail-fast pattern as DATABASE_URL above), so every describeIfDb
+      # suite that builds the full AppModule (app/contrib-radar/auth-and-
+      # billing e2e specs) needs *something* here even though the real
+      # GitHub OAuth App and Stripe product don't exist yet - see
+      # .env.example for what each one is for.
+      GITHUB_OAUTH_CLIENT_ID: ci-placeholder
+      GITHUB_OAUTH_CLIENT_SECRET: ci-placeholder
+      JWT_SECRET: ci-placeholder-jwt-secret
+      APP_URL: http://localhost:3000
+      STRIPE_SECRET_KEY: sk_test_ci-placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_ci-placeholder
+      STRIPE_PRO_PRICE_ID: price_ci-placeholder
     strategy:
       matrix:
         node-version: [22.x, 24.x]
