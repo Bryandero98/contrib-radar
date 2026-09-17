@@ -3,6 +3,16 @@
 # this file automatically; DATABASE_URL/GITHUB_TOKEN/GEMINI_API_KEY are
 # marked sync: false so Render prompts for them once instead of
 # committing secrets here.
+#
+# Migrations do NOT run automatically on deploy. database.module.ts
+# deliberately never auto-migrates on boot (concurrent instances racing to
+# migrate the same live DB is the exact footgun that avoids), and Render's
+# preDeployCommand - which would otherwise run them as a separate step
+# before the new version goes live - requires a paid instance type, not
+# available on this service's `plan: free`. After deploying any commit
+# that changes src/database/schema.ts, run the migration by hand once:
+# Render dashboard -> this service -> Shell tab -> `npm run db:migrate`
+# (DATABASE_URL is already set in that shell's environment).
 services:
   - type: web
     name: contrib-radar
