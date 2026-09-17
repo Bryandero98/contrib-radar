@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PgExceptionFilter } from './database/pg-exception.filter';
@@ -6,6 +7,11 @@ import { PgExceptionFilter } from './database/pg-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalFilters(new PgExceptionFilter());
+  // CreateWatchedRepoDto only carried @ApiProperty() for Swagger docs - no
+  // class-validator decorators, and nothing registered to enforce them even
+  // if it had. `whitelist` strips unknown properties instead of rejecting
+  // them (kept lenient); `transform` matches packetforge's identical fix.
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.enableShutdownHooks();
 
   const config = new DocumentBuilder()
