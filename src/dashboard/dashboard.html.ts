@@ -304,7 +304,7 @@ export function renderDashboardHtml(user: DashboardUser): string {
       apiKeyHint: 'Use this key as the X-Api-Key header when calling the MCP server.',
       apiKeyGenerate: 'Generate new key',
       logout: 'Logout',
-      freeTierLimitError: 'Free tier is limited to 3 watched repos - upgrade to add more.',
+      freeTierLimitError: 'Free tier is limited to 5 watched repos - upgrade to add more.',
       genericError: 'Something went wrong - please try again.',
     },
     es: {
@@ -331,7 +331,7 @@ export function renderDashboardHtml(user: DashboardUser): string {
       apiKeyHint: 'Usa esta key como header X-Api-Key al llamar al servidor MCP.',
       apiKeyGenerate: 'Generar nueva key',
       logout: 'Cerrar sesión',
-      freeTierLimitError: 'El plan gratis está limitado a 3 repos observados - mejora tu plan para agregar más.',
+      freeTierLimitError: 'El plan gratis está limitado a 5 repos observados - mejora tu plan para agregar más.',
       genericError: 'Algo salió mal - intenta de nuevo.',
     },
   };

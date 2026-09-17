@@ -51,7 +51,7 @@ export class WatchedReposController {
   @Throttle(WRITE_THROTTLE)
   @ApiOperation({
     summary:
-      'Watch a repo for scored issues - idempotent, returns the existing row if this owner/name is already watched. Free tier is capped at 3.',
+      'Watch a repo for scored issues - idempotent, returns the existing row if this owner/name is already watched. Free tier is capped at 5.',
   })
   @ApiCreatedResponse({ type: WatchedRepoDto })
   addWatchedRepo(

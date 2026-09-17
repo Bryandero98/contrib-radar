@@ -5,7 +5,7 @@ import { ForbiddenException } from '@nestjs/common';
 export class FreeTierLimitExceededException extends ForbiddenException {
   constructor() {
     super({
-      message: 'Free tier is limited to 3 watched repos - upgrade to add more.',
+      message: 'Free tier is limited to 5 watched repos - upgrade to add more.',
       code: 'FREE_TIER_LIMIT_EXCEEDED',
     });
   }

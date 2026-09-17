@@ -158,42 +158,50 @@ describeIfDb('WatchedReposService', () => {
   });
 
   describe('free-tier limit', () => {
-    it('rejects a 4th repo on the free tier', async () => {
+    it('rejects a 6th repo on the free tier', async () => {
       await service.addWatchedRepo(userId, 'free', 'o', 'r1');
       await service.addWatchedRepo(userId, 'free', 'o', 'r2');
       await service.addWatchedRepo(userId, 'free', 'o', 'r3');
+      await service.addWatchedRepo(userId, 'free', 'o', 'r4');
+      await service.addWatchedRepo(userId, 'free', 'o', 'r5');
 
       await expect(
-        service.addWatchedRepo(userId, 'free', 'o', 'r4'),
+        service.addWatchedRepo(userId, 'free', 'o', 'r6'),
       ).rejects.toThrow(FreeTierLimitExceededException);
-      expect(await service.listWatchedRepos(userId)).toHaveLength(3);
+      expect(await service.listWatchedRepos(userId)).toHaveLength(5);
     });
 
     it('does not count re-adding an already-watched repo against the limit', async () => {
       await service.addWatchedRepo(userId, 'free', 'o', 'r1');
       await service.addWatchedRepo(userId, 'free', 'o', 'r2');
       await service.addWatchedRepo(userId, 'free', 'o', 'r3');
+      await service.addWatchedRepo(userId, 'free', 'o', 'r4');
+      await service.addWatchedRepo(userId, 'free', 'o', 'r5');
 
       await expect(
         service.addWatchedRepo(userId, 'free', 'o', 'r1'),
       ).resolves.toMatchObject({ owner: 'o', name: 'r1' });
     });
 
-    it('allows more than 3 repos on the pro tier', async () => {
+    it('allows more than 5 repos on the pro tier', async () => {
       await service.addWatchedRepo(userId, 'pro', 'o', 'r1');
       await service.addWatchedRepo(userId, 'pro', 'o', 'r2');
       await service.addWatchedRepo(userId, 'pro', 'o', 'r3');
+      await service.addWatchedRepo(userId, 'pro', 'o', 'r4');
+      await service.addWatchedRepo(userId, 'pro', 'o', 'r5');
 
       await expect(
-        service.addWatchedRepo(userId, 'pro', 'o', 'r4'),
-      ).resolves.toMatchObject({ owner: 'o', name: 'r4' });
-      expect(await service.listWatchedRepos(userId)).toHaveLength(4);
+        service.addWatchedRepo(userId, 'pro', 'o', 'r6'),
+      ).resolves.toMatchObject({ owner: 'o', name: 'r6' });
+      expect(await service.listWatchedRepos(userId)).toHaveLength(6);
     });
 
     it("does not count another user's repos against this user's limit", async () => {
       await service.addWatchedRepo(otherUserId, 'free', 'o', 'r1');
       await service.addWatchedRepo(otherUserId, 'free', 'o', 'r2');
       await service.addWatchedRepo(otherUserId, 'free', 'o', 'r3');
+      await service.addWatchedRepo(otherUserId, 'free', 'o', 'r4');
+      await service.addWatchedRepo(otherUserId, 'free', 'o', 'r5');
 
       await expect(
         service.addWatchedRepo(userId, 'free', 'o', 'r1'),

@@ -6,7 +6,7 @@ import { watchedRepos } from '../database/schema';
 import { FreeTierLimitExceededException } from './free-tier-limit-exceeded.exception';
 
 const DEFAULT_LABEL_FILTER = ['good first issue'];
-const FREE_TIER_WATCHED_REPO_LIMIT = 3;
+const FREE_TIER_WATCHED_REPO_LIMIT = 5;
 
 @Injectable()
 export class WatchedReposService {

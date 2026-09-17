@@ -206,11 +206,11 @@ describeIfDb('auth + billing (e2e)', () => {
       .expect(404);
   });
 
-  it('caps the free tier at 3 repos and unlocks the 4th after a simulated Stripe upgrade', async () => {
+  it('caps the free tier at 5 repos and unlocks the 6th after a simulated Stripe upgrade', async () => {
     const sessionCookie = await loginAs('carol');
     let userId = '';
 
-    for (const name of ['r1', 'r2', 'r3']) {
+    for (const name of ['r1', 'r2', 'r3', 'r4', 'r5']) {
       const res = await request(app.getHttpServer())
         .post('/repos')
         .set('Cookie', sessionCookie)
@@ -220,12 +220,12 @@ describeIfDb('auth + billing (e2e)', () => {
     }
     createdUserIds.push(userId);
 
-    const fourthAttempt = await request(app.getHttpServer())
+    const sixthAttempt = await request(app.getHttpServer())
       .post('/repos')
       .set('Cookie', sessionCookie)
-      .send({ owner: 'o', name: 'r4' })
+      .send({ owner: 'o', name: 'r6' })
       .expect(403);
-    expect((fourthAttempt.body as { code?: string }).code).toBe(
+    expect((sixthAttempt.body as { code?: string }).code).toBe(
       'FREE_TIER_LIMIT_EXCEEDED',
     );
 
@@ -251,7 +251,7 @@ describeIfDb('auth + billing (e2e)', () => {
     await request(app.getHttpServer())
       .post('/repos')
       .set('Cookie', sessionCookie)
-      .send({ owner: 'o', name: 'r4' })
+      .send({ owner: 'o', name: 'r6' })
       .expect(201);
   });
 
