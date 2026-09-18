@@ -174,6 +174,7 @@ export class RefreshService {
     const result = this.scoringService.score({ issue, sentiment });
     const row = {
       title: issue.title,
+      body: issue.body,
       url: issue.url,
       state: issue.state,
       githubUpdatedAt: new Date(issue.updatedAt),

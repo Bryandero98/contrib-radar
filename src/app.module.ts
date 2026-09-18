@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
+import { ClaimAssistantModule } from './claim-assistant/claim-assistant.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
 import { GithubModule } from './github/github.module';
@@ -31,6 +32,7 @@ import { WatchedReposModule } from './watched-repos/watched-repos.module';
     WatchedReposModule,
     RefreshModule,
     IssuesModule,
+    ClaimAssistantModule,
     DashboardModule,
     McpModule,
     HealthModule,

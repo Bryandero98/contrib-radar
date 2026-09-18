@@ -9,6 +9,7 @@ import type {
 } from '../github-client.interface';
 
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
+const GITHUB_REST_URL = 'https://api.github.com';
 
 // GitHub's GraphQL secondary rate limit guidance: no more than ~1 request/sec
 // sustained. 800ms keeps meaningful headroom without needlessly slowing down
@@ -23,6 +24,7 @@ const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const ISSUE_FIELDS = `
   number
   title
+  body
   url
   state
   createdAt
@@ -103,6 +105,7 @@ interface RawComment {
 interface RawIssueNode {
   number: number;
   title: string;
+  body: string;
   url: string;
   state: 'OPEN' | 'CLOSED';
   createdAt: string;
@@ -208,6 +211,49 @@ export class GithubGraphqlProvider implements GithubClient {
     return this.toGithubIssue(owner, name, node);
   }
 
+  // REST, not the GraphQL addComment mutation: addComment needs the
+  // issue's GraphQL node id (subjectId), which none of this class's
+  // existing queries fetch - the REST comments endpoint takes owner/repo/
+  // issue number directly, avoiding an extra round-trip just to resolve
+  // an id this client has never needed before. Same GITHUB_TOKEN, same
+  // "public_repo" scope already covers writing issue comments.
+  async postIssueComment(
+    owner: string,
+    name: string,
+    issueNumber: number,
+    body: string,
+  ): Promise<{ url: string }> {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      throw new Error('GITHUB_TOKEN is required (see .env.example).');
+    }
+
+    const response = await this.rateLimiter.schedule(() =>
+      fetch(
+        `${GITHUB_REST_URL}/repos/${owner}/${name}/issues/${issueNumber}/comments`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+          },
+          body: JSON.stringify({ body }),
+        },
+      ),
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `GitHub comment post failed (${response.status}): ${errorBody}`,
+      );
+    }
+
+    const payload = (await response.json()) as { html_url: string };
+    return { url: payload.html_url };
+  }
+
   private async toGithubIssue(
     owner: string,
     name: string,
@@ -267,6 +313,7 @@ export class GithubGraphqlProvider implements GithubClient {
     return {
       number: node.number,
       title: node.title,
+      body: node.body,
       url: node.url,
       state: node.state,
       createdAt: node.createdAt,

@@ -235,6 +235,53 @@ export function renderDashboardHtml(user: DashboardUser): string {
   .reason-warning { color: var(--score-mid); border-color: var(--score-mid); }
   .reason-negative { color: var(--score-low); border-color: var(--score-low); }
   .updated-cell { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+
+  .claim-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .claim-pending_review { color: var(--score-mid); background: var(--score-mid-bg); }
+  .claim-approved { color: var(--score-mid); background: var(--score-mid-bg); }
+  .claim-posted { color: var(--score-high); background: var(--score-high-bg); }
+  .claim-abstained, .claim-rejected { color: var(--text-dim); background: var(--panel-2); }
+
+  #claimsSection { margin-top: 20px; }
+  #claimsSection h2 { font-size: 14px; margin: 0 0 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .claim-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .claim-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .claim-card textarea {
+    width: 100%;
+    min-height: 70px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .claim-card-actions { display: flex; gap: 8px; }
+  .claim-reasons { color: var(--text-dim); font-size: 12px; }
+  details#abstainedClaims { color: var(--text-dim); font-size: 13px; }
+  details#abstainedClaims summary { cursor: pointer; padding: 6px 0; }
+  .abstained-row { padding: 6px 0; border-top: 1px solid var(--border); font-size: 12px; }
+
   footer { text-align: center; padding: 24px; color: var(--text-dim); font-size: 12px; }
 </style>
 </head>
@@ -307,10 +354,20 @@ export function renderDashboardHtml(user: DashboardUser): string {
           <th data-sort="score" data-i18n="score">Score</th>
           <th data-i18n="reasons">Reasons</th>
           <th data-sort="githubUpdatedAt" data-i18n="updated">Updated</th>
+          <th data-i18n="claim">Claim</th>
         </tr>
       </thead>
       <tbody id="issuesBody"></tbody>
     </table>
+  </div>
+
+  <div id="claimsSection" style="display:none">
+    <h2 data-i18n="pendingClaims">Pending review</h2>
+    <div id="pendingClaimsList"></div>
+    <details id="abstainedClaims">
+      <summary data-i18n="abstainedClaims">Abstained (transparency log)</summary>
+      <div id="abstainedClaimsList"></div>
+    </details>
   </div>
 </main>
 
@@ -350,6 +407,22 @@ export function renderDashboardHtml(user: DashboardUser): string {
       alertsSaved: 'Saved.',
       alertsCleared: 'Alerts turned off.',
       alertsInvalidUrl: 'That must be a Slack incoming-webhook URL (https://hooks.slack.com/services/...).',
+      claim: 'Claim',
+      draftClaim: 'Draft claim',
+      pendingClaims: 'Pending review',
+      abstainedClaims: 'Abstained (transparency log)',
+      noPendingClaims: 'No drafts waiting for review.',
+      noAbstainedClaims: 'No abstained claims yet.',
+      approve: 'Approve',
+      reject: 'Reject',
+      claimStatusPending_review: 'Pending review',
+      claimStatusApproved: 'Posting...',
+      claimStatusPosted: 'Posted',
+      claimStatusAbstained: 'Abstained',
+      claimStatusRejected: 'Rejected',
+      claimAbstainedByGate: function (reasons) { return 'Gate: ' + reasons.join(', '); },
+      claimAbstainedByLlm: function (reason) { return 'LLM abstained: ' + reason; },
+      claimApproveStaleError: 'No longer safe to claim - the issue changed since this draft was written. Refresh and re-draft.',
       logout: 'Logout',
       freeTierLimitError: 'Free tier is limited to 5 watched repos - upgrade to add more.',
       genericError: 'Something went wrong - please try again.',
@@ -385,6 +458,22 @@ export function renderDashboardHtml(user: DashboardUser): string {
       alertsSaved: 'Guardado.',
       alertsCleared: 'Alertas desactivadas.',
       alertsInvalidUrl: 'Debe ser una URL de webhook entrante de Slack (https://hooks.slack.com/services/...).',
+      claim: 'Reclamo',
+      draftClaim: 'Redactar reclamo',
+      pendingClaims: 'Pendientes de revisión',
+      abstainedClaims: 'Abstenciones (registro de transparencia)',
+      noPendingClaims: 'No hay borradores esperando revisión.',
+      noAbstainedClaims: 'Todavía no hay abstenciones.',
+      approve: 'Aprobar',
+      reject: 'Rechazar',
+      claimStatusPending_review: 'Pendiente de revisión',
+      claimStatusApproved: 'Publicando...',
+      claimStatusPosted: 'Publicado',
+      claimStatusAbstained: 'Abstención',
+      claimStatusRejected: 'Rechazado',
+      claimAbstainedByGate: function (reasons) { return 'Filtro: ' + reasons.join(', '); },
+      claimAbstainedByLlm: function (reason) { return 'El LLM se abstuvo: ' + reason; },
+      claimApproveStaleError: 'Ya no es seguro reclamarlo - el issue cambió desde que se redactó este borrador. Actualiza y volvé a redactar.',
       logout: 'Cerrar sesión',
       freeTierLimitError: 'El plan gratis está limitado a 5 repos observados - mejora tu plan para agregar más.',
       genericError: 'Algo salió mal - intenta de nuevo.',
@@ -426,10 +515,26 @@ export function renderDashboardHtml(user: DashboardUser): string {
 
   const SEVERITY_ICON = { positive: '\\u2713', info: '\\u2139', warning: '\\u26A0', negative: '\\u2717' };
 
+  const CLAIM_GATE_REASON_TEXT = {
+    en: {
+      ALREADY_ASSIGNED: 'Already assigned to someone',
+      COMPETING_PR_OPEN: 'A competing PR is already open',
+      MAINTAINER_DISCOURAGED: 'Maintainer sentiment is discouraging',
+      SCORE_TOO_LOW: 'Score is too low',
+    },
+    es: {
+      ALREADY_ASSIGNED: 'Ya está asignado a alguien',
+      COMPETING_PR_OPEN: 'Ya hay un PR compitiendo abierto',
+      MAINTAINER_DISCOURAGED: 'La señal del mantenedor es desalentadora',
+      SCORE_TOO_LOW: 'El score es demasiado bajo',
+    },
+  };
+
   let lang = 'en';
   let repos = [];
   let selectedRepoId = null;
   let issues = [];
+  let claimDrafts = [];
   let sortKey = 'score';
   let sortDir = 'desc';
 
@@ -460,6 +565,9 @@ export function renderDashboardHtml(user: DashboardUser): string {
     alertsSave: document.getElementById('alertsSave'),
     alertsClear: document.getElementById('alertsClear'),
     alertsStatus: document.getElementById('alertsStatus'),
+    claimsSection: document.getElementById('claimsSection'),
+    pendingClaimsList: document.getElementById('pendingClaimsList'),
+    abstainedClaimsList: document.getElementById('abstainedClaimsList'),
   };
 
   function t(key) { return I18N[lang][key]; }
@@ -473,7 +581,7 @@ export function renderDashboardHtml(user: DashboardUser): string {
     el.repoSelect.querySelector('option[value=""]') &&
       (el.repoSelect.querySelector('option[value=""]').textContent = t('selectRepo'));
     renderLastRefreshed();
-    if (selectedRepoId) { renderIssues(); } else { renderEmptyOrLoading(); }
+    if (selectedRepoId) { renderIssues(); renderClaimsPanel(); } else { renderEmptyOrLoading(); }
   }
 
   function relativeTime(iso) {
@@ -522,6 +630,7 @@ export function renderDashboardHtml(user: DashboardUser): string {
 
   function renderEmptyOrLoading() {
     el.loadingState.style.display = 'none';
+    el.claimsSection.style.display = 'none';
     if (repos.length === 0) {
       el.emptyState.style.display = 'block';
       el.tableWrap.style.display = 'none';
@@ -606,8 +715,33 @@ export function renderDashboardHtml(user: DashboardUser): string {
       updatedTd.textContent = relativeTime(issue.githubUpdatedAt);
       tr.appendChild(updatedTd);
 
+      const claimTd = document.createElement('td');
+      const existingDraft = claimDrafts.find(function (d) {
+        return d.issueNumber === issue.issueNumber;
+      });
+      if (!existingDraft) {
+        const draftBtn = document.createElement('button');
+        draftBtn.type = 'button';
+        draftBtn.className = 'ghost';
+        draftBtn.textContent = t('draftClaim');
+        draftBtn.addEventListener('click', function () {
+          runDraftClaim(issue.issueNumber, draftBtn);
+        });
+        claimTd.appendChild(draftBtn);
+      } else {
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'claim-status claim-' + existingDraft.status;
+        statusSpan.textContent = t('claimStatus' + capitalize(existingDraft.status));
+        claimTd.appendChild(statusSpan);
+      }
+      tr.appendChild(claimTd);
+
       el.issuesBody.appendChild(tr);
     });
+  }
+
+  function capitalize(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   function updateSortArrows() {
@@ -638,13 +772,151 @@ export function renderDashboardHtml(user: DashboardUser): string {
   async function loadIssues() {
     if (!selectedRepoId) return;
     issues = await api('/repos/' + selectedRepoId + '/issues');
+    await loadClaims();
     renderIssues();
+  }
+
+  async function loadClaims() {
+    if (!selectedRepoId) {
+      claimDrafts = [];
+      el.claimsSection.style.display = 'none';
+      return;
+    }
+    claimDrafts = await api('/claims?watchedRepoId=' + selectedRepoId);
+    el.claimsSection.style.display = 'block';
+    renderClaimsPanel();
+  }
+
+  function renderClaimsPanel() {
+    const pending = claimDrafts.filter(function (d) { return d.status === 'pending_review'; });
+    const abstained = claimDrafts.filter(function (d) { return d.status === 'abstained'; });
+
+    el.pendingClaimsList.innerHTML = '';
+    if (pending.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'claim-reasons';
+      empty.textContent = t('noPendingClaims');
+      el.pendingClaimsList.appendChild(empty);
+    } else {
+      pending.forEach(function (draft) {
+        el.pendingClaimsList.appendChild(buildPendingClaimCard(draft));
+      });
+    }
+
+    el.abstainedClaimsList.innerHTML = '';
+    if (abstained.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'claim-reasons';
+      empty.textContent = t('noAbstainedClaims');
+      el.abstainedClaimsList.appendChild(empty);
+    } else {
+      abstained.forEach(function (draft) {
+        el.abstainedClaimsList.appendChild(buildAbstainedRow(draft));
+      });
+    }
+  }
+
+  function buildPendingClaimCard(draft) {
+    const card = document.createElement('div');
+    card.className = 'claim-card';
+
+    const header = document.createElement('div');
+    header.className = 'claim-card-header';
+    const title = document.createElement('strong');
+    title.textContent = '#' + draft.issueNumber;
+    header.appendChild(title);
+    card.appendChild(header);
+
+    // .value, never innerHTML: the draft comment is built from the issue's
+    // own title/body, which the issue's author controls, not this app's
+    // user - see the "El texto del issue..." note in the plan.
+    const textarea = document.createElement('textarea');
+    textarea.value = draft.draftComment || '';
+    card.appendChild(textarea);
+
+    const actions = document.createElement('div');
+    actions.className = 'claim-card-actions';
+
+    const approveBtn = document.createElement('button');
+    approveBtn.type = 'button';
+    approveBtn.textContent = t('approve');
+    approveBtn.addEventListener('click', function () {
+      runApproveClaim(draft.id, approveBtn);
+    });
+    actions.appendChild(approveBtn);
+
+    const rejectBtn = document.createElement('button');
+    rejectBtn.type = 'button';
+    rejectBtn.className = 'ghost';
+    rejectBtn.textContent = t('reject');
+    rejectBtn.addEventListener('click', function () {
+      runRejectClaim(draft.id, rejectBtn);
+    });
+    actions.appendChild(rejectBtn);
+
+    card.appendChild(actions);
+    return card;
+  }
+
+  function buildAbstainedRow(draft) {
+    const row = document.createElement('div');
+    row.className = 'abstained-row';
+    const title = document.createElement('strong');
+    title.textContent = '#' + draft.issueNumber + ' ';
+    row.appendChild(title);
+    const reason = document.createElement('span');
+    reason.textContent = draft.gateReasons && draft.gateReasons.length > 0
+      ? t('claimAbstainedByGate')(draft.gateReasons.map(function (code) {
+          return CLAIM_GATE_REASON_TEXT[lang][code] || code;
+        }))
+      : t('claimAbstainedByLlm')(draft.llmAbstainReason || '');
+    row.appendChild(reason);
+    return row;
+  }
+
+  async function runDraftClaim(issueNumber, button) {
+    button.disabled = true;
+    try {
+      await api('/claims', {
+        method: 'POST',
+        body: JSON.stringify({ watchedRepoId: selectedRepoId, issueNumber: issueNumber }),
+      });
+      await loadClaims();
+      renderIssues();
+    } catch (err) {
+      alert(t('genericError'));
+      button.disabled = false;
+    }
+  }
+
+  async function runApproveClaim(draftId, button) {
+    button.disabled = true;
+    try {
+      await api('/claims/' + draftId + '/approve', { method: 'POST' });
+      await loadClaims();
+      renderIssues();
+    } catch (err) {
+      alert(String(err).indexOf('400') !== -1 ? t('claimApproveStaleError') : t('genericError'));
+      button.disabled = false;
+    }
+  }
+
+  async function runRejectClaim(draftId, button) {
+    button.disabled = true;
+    try {
+      await api('/claims/' + draftId + '/reject', { method: 'POST' });
+      await loadClaims();
+      renderIssues();
+    } catch (err) {
+      alert(t('genericError'));
+      button.disabled = false;
+    }
   }
 
   el.repoSelect.addEventListener('change', function () {
     selectedRepoId = el.repoSelect.value || null;
     renderLastRefreshed();
-    if (selectedRepoId) { loadIssues(); } else { issues = []; renderEmptyOrLoading(); }
+    if (selectedRepoId) { loadIssues(); } else { issues = []; claimDrafts = []; renderEmptyOrLoading(); }
   });
 
   el.addRepoToggle.addEventListener('click', function () {

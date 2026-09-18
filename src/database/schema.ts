@@ -122,6 +122,11 @@ export const issueScores = pgTable(
       .references(() => watchedRepos.id, { onDelete: 'cascade' }),
     issueNumber: integer('issue_number').notNull(),
     title: text('title').notNull(),
+    // The raw issue description - scoring itself never reads this, only
+    // claim-assistant does (drafting a claim comment needs more than the
+    // title). Stored here instead of fetched fresh at draft time so
+    // draftClaim never needs its own GitHub round-trip.
+    body: text('body').notNull().default(''),
     url: text('url').notNull(),
     state: text('state').notNull(),
     githubUpdatedAt: timestamp('github_updated_at', {
@@ -150,6 +155,69 @@ export const issueScores = pgTable(
   },
   (table) => [
     uniqueIndex('issue_scores_repo_issue_idx').on(
+      table.watchedRepoId,
+      table.issueNumber,
+    ),
+  ],
+);
+
+export const claimDraftStatusEnum = pgEnum('claim_draft_status', [
+  'abstained',
+  'pending_review',
+  'approved',
+  'posted',
+  'rejected',
+]);
+
+/**
+ * A snapshot of the deterministic signals the gate saw when it decided -
+ * without this, an empty `gateReasons` ("passed cleanly") tells you
+ * nothing auditable about *why* it passed. Mirrors the subset of
+ * issue_scores fields the gate actually reads (see claim-gate.ts).
+ */
+export interface ClaimGateSnapshot {
+  hasAssignee: boolean;
+  openCompetingPrCount: number;
+  sentimentLabel: string | null;
+  score: number;
+}
+
+/**
+ * One attempt at "should I claim this issue" - created by draftClaim,
+ * terminated by approve/reject (see claim-assistant.service.ts). Treated
+ * as append-only by application convention (no code path updates a row
+ * once it reaches a terminal status), not by a DB constraint - a single
+ * user's audit trail doesn't need more than that discipline in v1.
+ */
+export const claimDrafts = pgTable(
+  'claim_drafts',
+  {
+    id: text('id').primaryKey(),
+    watchedRepoId: text('watched_repo_id')
+      .notNull()
+      .references(() => watchedRepos.id, { onDelete: 'cascade' }),
+    issueNumber: integer('issue_number').notNull(),
+    status: claimDraftStatusEnum('status').notNull(),
+    gateReasons: jsonb('gate_reasons').$type<string[]>().notNull(),
+    gateSnapshot: jsonb('gate_snapshot').$type<ClaimGateSnapshot>().notNull(),
+    // Set only when the LLM (not the gate) chose to abstain on an issue
+    // that otherwise passed.
+    llmAbstainReason: text('llm_abstain_reason'),
+    // Null until a draft is actually written (gate-abstained rows never get one).
+    draftComment: text('draft_comment'),
+    // Set only once, when status becomes 'posted' - never rewritten after.
+    postedCommentUrl: text('posted_comment_url'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('claim_drafts_watched_repo_idx').on(table.watchedRepoId),
+    // One draft per issue - a double-click or a concurrent request must
+    // not create two, since the dashboard shows one "Draft claim" button
+    // per issue that doesn't have one yet.
+    uniqueIndex('claim_drafts_repo_issue_idx').on(
       table.watchedRepoId,
       table.issueNumber,
     ),

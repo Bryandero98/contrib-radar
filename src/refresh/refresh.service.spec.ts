@@ -27,6 +27,7 @@ function fakeIssue(overrides: Partial<GithubIssue> = {}): GithubIssue {
   return {
     number: 1,
     title: 'Fake issue',
+    body: 'Fake issue body',
     url: 'https://github.com/o/r/issues/1',
     state: 'OPEN',
     createdAt: new Date().toISOString(),
@@ -59,6 +60,12 @@ class FakeGithubClient implements GithubClient {
 
   fetchSingleIssueForScoring(): Promise<GithubIssue | null> {
     return Promise.resolve(this.issues[0] ?? null);
+  }
+
+  postIssueComment(): Promise<{ url: string }> {
+    return Promise.resolve({
+      url: 'https://github.com/o/r/issues/1#issuecomment-1',
+    });
   }
 }
 

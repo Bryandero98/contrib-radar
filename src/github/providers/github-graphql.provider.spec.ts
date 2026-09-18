@@ -14,6 +14,7 @@ const rateLimit = { cost: 1, remaining: 4999, resetAt: '2026-09-06T00:00:00Z' };
 const baseIssueNode = {
   number: 1,
   title: 'Some issue',
+  body: 'Some issue body',
   url: 'https://github.com/o/r/issues/1',
   state: 'OPEN',
   createdAt: '2026-01-01T00:00:00Z',
@@ -305,5 +306,43 @@ describe('GithubGraphqlProvider', () => {
     await provider.fetchIssuesForScoring({ owner: 'o', name: 'r', labels: [] });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('postIssueComment', () => {
+    it('POSTs to the REST comments endpoint with the given body', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(201, {
+          html_url: 'https://github.com/o/r/issues/1#issuecomment-1',
+        }),
+      );
+
+      const result = await provider.postIssueComment(
+        'o',
+        'r',
+        1,
+        "I'd like to work on this",
+      );
+
+      expect(result).toEqual({
+        url: 'https://github.com/o/r/issues/1#issuecomment-1',
+      });
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.github.com/repos/o/r/issues/1/comments');
+      expect(init?.method).toBe('POST');
+      expect((init?.headers as Record<string, string>).Authorization).toBe(
+        'Bearer test-token',
+      );
+      expect(init?.body).toBe(
+        JSON.stringify({ body: "I'd like to work on this" }),
+      );
+    });
+
+    it('throws with the response body on a non-ok response', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(403, { message: 'nope' }));
+
+      await expect(
+        provider.postIssueComment('o', 'r', 1, 'hi'),
+      ).rejects.toThrow(/GitHub comment post failed \(403\)/);
+    });
   });
 });

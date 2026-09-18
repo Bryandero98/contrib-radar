@@ -10,6 +10,7 @@ function baseIssue(overrides: Partial<GithubIssue> = {}): GithubIssue {
   return {
     number: 1,
     title: 'Some issue',
+    body: 'Some issue body',
     url: 'https://github.com/o/r/issues/1',
     state: 'OPEN',
     createdAt: daysAgo(10),

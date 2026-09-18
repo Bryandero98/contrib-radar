@@ -1,0 +1,1 @@
+ALTER TABLE "issue_scores" ADD COLUMN "body" text DEFAULT '' NOT NULL;

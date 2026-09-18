@@ -17,6 +17,8 @@ export interface GithubIssueComment {
 export interface GithubIssue {
   number: number;
   title: string;
+  /** Raw issue description - scoring never reads this, only claim-assistant does (see ClaimCandidate). */
+  body: string;
   url: string;
   state: 'OPEN' | 'CLOSED';
   createdAt: string;
@@ -52,4 +54,17 @@ export interface GithubClient {
     name: string,
     issueNumber: number,
   ): Promise<GithubIssue | null>;
+
+  /**
+   * Posts a real comment on a real issue - the one write operation this
+   * client has (see claim-assistant.service.ts's approve()). Every caller
+   * of this method must have a human's explicit approval already in hand;
+   * this interface has no opinion on that, it just performs the write.
+   */
+  postIssueComment(
+    owner: string,
+    name: string,
+    issueNumber: number,
+    body: string,
+  ): Promise<{ url: string }>;
 }

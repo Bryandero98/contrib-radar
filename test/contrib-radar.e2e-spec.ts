@@ -26,6 +26,7 @@ function fakeIssue(overrides: Partial<GithubIssue> = {}): GithubIssue {
   return {
     number: 42,
     title: 'Add a retry to the flaky upload step',
+    body: 'The upload step occasionally fails with a transient network error.',
     url: 'https://github.com/o/r/issues/42',
     state: 'OPEN',
     createdAt: new Date().toISOString(),
@@ -58,6 +59,12 @@ class FakeGithubClient implements GithubClient {
 
   fetchSingleIssueForScoring(): Promise<GithubIssue | null> {
     return Promise.resolve(fakeIssue());
+  }
+
+  postIssueComment(): Promise<{ url: string }> {
+    return Promise.resolve({
+      url: 'https://github.com/o/r/issues/42#issuecomment-1',
+    });
   }
 }
 

@@ -36,6 +36,20 @@
       "when": 1789739753645,
       "tag": "0004_warm_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789743147715,
+      "tag": "0005_lean_gwen_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789743473031,
+      "tag": "0006_steady_forge",
+      "breakpoints": true
     }
   ]
 }
