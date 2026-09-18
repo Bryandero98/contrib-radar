@@ -38,6 +38,19 @@ export class BillingController {
     return { url };
   }
 
+  @Post('portal')
+  @UseGuards(JwtCookieAuthGuard)
+  @Throttle(WRITE_THROTTLE)
+  @ApiOperation({
+    summary:
+      'Create a Stripe Customer Portal session (manage/cancel the Pro subscription).',
+  })
+  @ApiOkResponse({ description: '{ url: string }' })
+  async portal(@CurrentUser() user: AuthenticatedUser) {
+    const url = await this.billingService.createPortalSession(user.id);
+    return { url };
+  }
+
   // No session guard - Stripe calls this server-to-server with no cookie;
   // authenticity comes from the signature check inside
   // billingService.constructEvent, not from a guard here.

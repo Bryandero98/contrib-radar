@@ -35,11 +35,13 @@ export class DashboardController {
       return;
     }
 
-    res
-      .type('html')
-      .send(
-        renderDashboardHtml({ githubLogin: user.githubLogin, tier: user.tier }),
-      );
+    res.type('html').send(
+      renderDashboardHtml({
+        githubLogin: user.githubLogin,
+        tier: user.tier,
+        alertWebhookUrl: user.alertWebhookUrl,
+      }),
+    );
   }
 
   private async loadUser(token: string) {

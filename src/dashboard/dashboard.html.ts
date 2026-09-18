@@ -1,14 +1,16 @@
 export interface DashboardUser {
   githubLogin: string;
   tier: 'free' | 'pro';
+  alertWebhookUrl: string | null;
 }
 
 // A single self-contained page - no build step, no external dependencies,
 // no framework - deliberately, same constraint as packetforge's own
 // dashboard. Every request it makes is to contrib-radar's own already-
 // existing REST API (GET/POST /repos, POST /repos/:id/refresh,
-// GET /repos/:id/issues) - plus /billing/checkout and /users/me/api-key,
-// added alongside GitHub OAuth login. i18n is a plain client-side
+// GET /repos/:id/issues) - plus /billing/checkout, /billing/portal,
+// /users/me/api-key, and /users/me/alerts, added alongside GitHub OAuth
+// login. i18n is a plain client-side
 // dictionary (EN/ES) swapped via one data-i18n attribute pass.
 //
 // A function, not a plain string constant, so the logged-in user's login
@@ -18,7 +20,10 @@ export interface DashboardUser {
 // GitHub usernames are restricted to `[a-zA-Z0-9-]` (enforced by GitHub
 // itself, not by this code) - no HTML-escaping helper exists anywhere in
 // this project, so this is a deliberate reliance on that upstream
-// constraint, not an oversight.
+// constraint, not an oversight. `user.alertWebhookUrl` relies on the same
+// pattern from the other direction: UsersService.setAlertWebhookUrl always
+// persists `new URL(...).href`, which percent-encodes any HTML-special
+// character before it ever reaches this template.
 export function renderDashboardHtml(user: DashboardUser): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -152,6 +157,29 @@ export function renderDashboardHtml(user: DashboardUser): string {
     word-break: break-all;
   }
 
+  #alertsPanel {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 14px 20px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  #alertsPanel.open { display: flex; }
+  #alertsPanel p { margin: 0; font-size: 13px; color: var(--text-dim); }
+  #alertsWebhookInput {
+    width: 360px;
+    max-width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: inherit;
+  }
+  #alertsStatus { font-size: 12px; color: var(--text-dim); }
+
   main { padding: 20px; max-width: 1100px; margin: 0 auto; }
   #emptyState, #loadingState {
     padding: 60px 20px;
@@ -225,9 +253,10 @@ export function renderDashboardHtml(user: DashboardUser): string {
     ${
       user.tier === 'free'
         ? '<button id="upgradeBtn" type="button" data-i18n="upgrade">Upgrade</button>'
-        : ''
+        : '<button id="manageSubscriptionBtn" class="ghost" type="button" data-i18n="manageSubscription">Manage subscription</button>'
     }
     <button id="apiKeyToggle" class="ghost" type="button" data-i18n="apiKey">API Key</button>
+    <button id="alertsToggle" class="ghost" type="button" data-i18n="alerts">Alerts</button>
     <form id="logoutForm" method="post" action="/auth/logout" style="display:inline">
       <button type="submit" class="ghost" data-i18n="logout">Logout</button>
     </form>
@@ -239,6 +268,16 @@ export function renderDashboardHtml(user: DashboardUser): string {
   <p data-i18n="apiKeyHint">Use this key as the <code>X-Api-Key</code> header when calling the MCP server.</p>
   <button id="apiKeyGenerate" type="button" data-i18n="apiKeyGenerate">Generate new key</button>
   <pre id="apiKeyDisplay" style="display:none"></pre>
+</div>
+
+<div id="alertsPanel">
+  <p data-i18n="alertsHint">Paste a Slack incoming-webhook URL to get notified when a watched repo finds a new scored issue.</p>
+  <input type="text" id="alertsWebhookInput" placeholder="https://hooks.slack.com/services/..." value="${user.alertWebhookUrl ?? ''}" />
+  <div>
+    <button id="alertsSave" type="button" data-i18n="save">Save</button>
+    <button id="alertsClear" class="ghost" type="button" data-i18n="clear">Clear</button>
+  </div>
+  <p id="alertsStatus" style="display:none"></p>
 </div>
 
 <div id="addRepoForm">
@@ -300,9 +339,17 @@ export function renderDashboardHtml(user: DashboardUser): string {
       lastRefreshedAt: function (rel) { return 'refreshed ' + rel; },
       cooldownActive: function (rel) { return 'cooldown active - showing snapshot from ' + rel; },
       upgrade: 'Upgrade',
+      manageSubscription: 'Manage subscription',
       apiKey: 'API Key',
       apiKeyHint: 'Use this key as the X-Api-Key header when calling the MCP server.',
       apiKeyGenerate: 'Generate new key',
+      alerts: 'Alerts',
+      alertsHint: 'Paste a Slack incoming-webhook URL to get notified when a watched repo finds a new scored issue.',
+      save: 'Save',
+      clear: 'Clear',
+      alertsSaved: 'Saved.',
+      alertsCleared: 'Alerts turned off.',
+      alertsInvalidUrl: 'That must be a Slack incoming-webhook URL (https://hooks.slack.com/services/...).',
       logout: 'Logout',
       freeTierLimitError: 'Free tier is limited to 5 watched repos - upgrade to add more.',
       genericError: 'Something went wrong - please try again.',
@@ -327,9 +374,17 @@ export function renderDashboardHtml(user: DashboardUser): string {
       lastRefreshedAt: function (rel) { return 'actualizado ' + rel; },
       cooldownActive: function (rel) { return 'cooldown activo - mostrando foto de ' + rel; },
       upgrade: 'Mejorar plan',
+      manageSubscription: 'Gestionar suscripción',
       apiKey: 'API Key',
       apiKeyHint: 'Usa esta key como header X-Api-Key al llamar al servidor MCP.',
       apiKeyGenerate: 'Generar nueva key',
+      alerts: 'Alertas',
+      alertsHint: 'Pega una URL de webhook entrante de Slack para recibir un aviso cuando un repo observado encuentre un issue nuevo.',
+      save: 'Guardar',
+      clear: 'Quitar',
+      alertsSaved: 'Guardado.',
+      alertsCleared: 'Alertas desactivadas.',
+      alertsInvalidUrl: 'Debe ser una URL de webhook entrante de Slack (https://hooks.slack.com/services/...).',
       logout: 'Cerrar sesión',
       freeTierLimitError: 'El plan gratis está limitado a 5 repos observados - mejora tu plan para agregar más.',
       genericError: 'Algo salió mal - intenta de nuevo.',
@@ -394,10 +449,17 @@ export function renderDashboardHtml(user: DashboardUser): string {
     tableWrap: document.getElementById('tableWrap'),
     issuesBody: document.getElementById('issuesBody'),
     upgradeBtn: document.getElementById('upgradeBtn'),
+    manageSubscriptionBtn: document.getElementById('manageSubscriptionBtn'),
     apiKeyToggle: document.getElementById('apiKeyToggle'),
     apiKeyPanel: document.getElementById('apiKeyPanel'),
     apiKeyGenerate: document.getElementById('apiKeyGenerate'),
     apiKeyDisplay: document.getElementById('apiKeyDisplay'),
+    alertsToggle: document.getElementById('alertsToggle'),
+    alertsPanel: document.getElementById('alertsPanel'),
+    alertsWebhookInput: document.getElementById('alertsWebhookInput'),
+    alertsSave: document.getElementById('alertsSave'),
+    alertsClear: document.getElementById('alertsClear'),
+    alertsStatus: document.getElementById('alertsStatus'),
   };
 
   function t(key) { return I18N[lang][key]; }
@@ -625,6 +687,19 @@ export function renderDashboardHtml(user: DashboardUser): string {
     });
   }
 
+  if (el.manageSubscriptionBtn) {
+    el.manageSubscriptionBtn.addEventListener('click', async function () {
+      el.manageSubscriptionBtn.disabled = true;
+      try {
+        const result = await api('/billing/portal', { method: 'POST' });
+        window.location.href = result.url;
+      } catch (err) {
+        alert(t('genericError'));
+        el.manageSubscriptionBtn.disabled = false;
+      }
+    });
+  }
+
   el.apiKeyToggle.addEventListener('click', function () {
     el.apiKeyPanel.classList.toggle('open');
   });
@@ -639,6 +714,42 @@ export function renderDashboardHtml(user: DashboardUser): string {
       alert(t('genericError'));
     } finally {
       el.apiKeyGenerate.disabled = false;
+    }
+  });
+
+  el.alertsToggle.addEventListener('click', function () {
+    el.alertsPanel.classList.toggle('open');
+  });
+
+  function showAlertsStatus(text) {
+    el.alertsStatus.textContent = text;
+    el.alertsStatus.style.display = 'block';
+  }
+
+  el.alertsSave.addEventListener('click', async function () {
+    const webhookUrl = el.alertsWebhookInput.value.trim();
+    if (!webhookUrl) return;
+    el.alertsSave.disabled = true;
+    try {
+      await api('/users/me/alerts', { method: 'PATCH', body: JSON.stringify({ webhookUrl: webhookUrl }) });
+      showAlertsStatus(t('alertsSaved'));
+    } catch (err) {
+      alert(String(err).indexOf('400') !== -1 ? t('alertsInvalidUrl') : t('genericError'));
+    } finally {
+      el.alertsSave.disabled = false;
+    }
+  });
+
+  el.alertsClear.addEventListener('click', async function () {
+    el.alertsClear.disabled = true;
+    try {
+      await api('/users/me/alerts', { method: 'PATCH', body: JSON.stringify({ webhookUrl: null }) });
+      el.alertsWebhookInput.value = '';
+      showAlertsStatus(t('alertsCleared'));
+    } catch (err) {
+      alert(t('genericError'));
+    } finally {
+      el.alertsClear.disabled = false;
     }
   });
 

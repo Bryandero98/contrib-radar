@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 // Not a type-only import: emitDecoratorMetadata needs a real runtime
 // binding for `Stripe` to populate this constructor's design:paramtypes,
 // even though @Inject(STRIPE_CLIENT) is what Nest actually uses to
@@ -38,6 +38,25 @@ export class BillingService {
     if (!session.url) {
       throw new Error('Stripe did not return a checkout URL.');
     }
+    return session.url;
+  }
+
+  // The Stripe-hosted Customer Portal (subscription cancel/reactivate,
+  // payment method, invoice history) - avoids building any of that
+  // ourselves for v1, same "let Stripe own it" call as Checkout itself.
+  async createPortalSession(userId: string): Promise<string> {
+    const user = await this.usersService.findById(userId);
+    if (!user?.stripeCustomerId) {
+      throw new BadRequestException(
+        'No Stripe customer on file yet - upgrade to Pro first.',
+      );
+    }
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${appUrl}/dashboard`,
+    });
     return session.url;
   }
 

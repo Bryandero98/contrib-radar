@@ -46,6 +46,12 @@ export const users = pgTable(
     apiKeyHash: text('api_key_hash'),
     stripeCustomerId: text('stripe_customer_id'),
     stripeSubscriptionId: text('stripe_subscription_id'),
+    // A Slack incoming-webhook URL, restricted to hooks.slack.com in the
+    // DTO/service layer (see users.service.ts) - the server POSTs to
+    // whatever URL is stored here on every new issue found, so accepting
+    // an arbitrary user-supplied URL would be a textbook SSRF vector
+    // (internal services, cloud metadata endpoints, etc).
+    alertWebhookUrl: text('alert_webhook_url'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { and, eq, notInArray } from 'drizzle-orm';
+import { AlertsService } from '../alerts/alerts.service';
 import { DRIZZLE, type DrizzleDb } from '../database/database.module';
-import { issueScores, watchedRepos } from '../database/schema';
+import { issueScores, users, watchedRepos } from '../database/schema';
 import { GITHUB_CLIENT } from '../github/github.module';
 import type {
   GithubClient,
@@ -35,6 +36,7 @@ export class RefreshService {
     @Inject(SENTIMENT_PROVIDER)
     private readonly sentimentProvider: SentimentProvider,
     private readonly scoringService: ScoringService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async refreshWatchedRepo(
@@ -68,8 +70,22 @@ export class RefreshService {
       labels: repo.labelFilter,
     });
 
+    // Snapshot which issue numbers were already scored *before* this
+    // refresh's upserts, so alerting can tell "new" from "still open" -
+    // issueScores is an upsert-in-place snapshot (see the schema comment),
+    // it never records when a row first appeared.
+    const previouslyScored = new Set(
+      (
+        await this.db
+          .select({ issueNumber: issueScores.issueNumber })
+          .from(issueScores)
+          .where(eq(issueScores.watchedRepoId, watchedRepoId))
+      ).map((row) => row.issueNumber),
+    );
+
+    const scores = new Map<number, number>();
     for (const issue of issues) {
-      await this.scoreAndUpsert(watchedRepoId, issue);
+      scores.set(issue.number, await this.scoreAndUpsert(watchedRepoId, issue));
     }
 
     // issue_scores is a snapshot of "currently open and matching the label
@@ -95,7 +111,43 @@ export class RefreshService {
       .set({ lastRefreshedAt: new Date() })
       .where(eq(watchedRepos.id, watchedRepoId));
 
+    await this.alertNewIssues(userId, repo, issues, previouslyScored, scores);
+
     return { refreshed: true, issueCount: issues.length };
+  }
+
+  // Awaited (not detached), but a webhook failure is logged inside
+  // AlertsService and never rethrown, so it can delay a refresh's response
+  // (bounded by AlertsService's own timeout) but never fail it.
+  private async alertNewIssues(
+    userId: string,
+    repo: { owner: string; name: string },
+    issues: GithubIssue[],
+    previouslyScored: Set<number>,
+    scores: Map<number, number>,
+  ): Promise<void> {
+    const newIssues = issues.filter(
+      (issue) => !previouslyScored.has(issue.number),
+    );
+    if (newIssues.length === 0) return;
+
+    const [user] = await this.db
+      .select({ alertWebhookUrl: users.alertWebhookUrl })
+      .from(users)
+      .where(eq(users.id, userId));
+    if (!user?.alertWebhookUrl) return;
+
+    await this.alertsService.notifyNewIssues(
+      user.alertWebhookUrl,
+      newIssues.map((issue) => ({
+        owner: repo.owner,
+        name: repo.name,
+        number: issue.number,
+        title: issue.title,
+        url: issue.url,
+        score: scores.get(issue.number) ?? 0,
+      })),
+    );
   }
 
   // Used by check_issue_feasibility (Fase 5's MCP tool): always live, no
@@ -117,7 +169,7 @@ export class RefreshService {
   private async scoreAndUpsert(
     watchedRepoId: string,
     issue: GithubIssue,
-  ): Promise<void> {
+  ): Promise<number> {
     const sentiment = await this.classifySentiment(issue);
     const result = this.scoringService.score({ issue, sentiment });
     const row = {
@@ -142,6 +194,8 @@ export class RefreshService {
         target: [issueScores.watchedRepoId, issueScores.issueNumber],
         set: { ...row, scoredAt: new Date() },
       });
+
+    return result.score;
   }
 
   private async classifySentiment(issue: GithubIssue) {

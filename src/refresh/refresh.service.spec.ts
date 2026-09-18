@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { AlertsService, type NewIssueAlert } from '../alerts/alerts.service';
 import { DRIZZLE } from '../database/database.module';
 import * as schema from '../database/schema';
 import { issueScores, users, watchedRepos } from '../database/schema';
@@ -68,12 +69,24 @@ class FakeSentimentProvider implements SentimentProvider {
   }
 }
 
+class FakeAlertsService extends AlertsService {
+  calls: { webhookUrl: string; issues: NewIssueAlert[] }[] = [];
+  override notifyNewIssues(
+    webhookUrl: string,
+    issues: NewIssueAlert[],
+  ): Promise<void> {
+    this.calls.push({ webhookUrl, issues });
+    return Promise.resolve();
+  }
+}
+
 describeIfDb('RefreshService', () => {
   let pool: Pool;
   let db: ReturnType<typeof drizzle<typeof schema>>;
   let githubClient: FakeGithubClient;
   let watchedRepoId: string;
   let userId: string;
+  let alertsService: FakeAlertsService;
 
   beforeEach(async () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -94,6 +107,7 @@ describeIfDb('RefreshService', () => {
     });
 
     githubClient = new FakeGithubClient();
+    alertsService = new FakeAlertsService();
   });
 
   afterEach(async () => {
@@ -117,6 +131,7 @@ describeIfDb('RefreshService', () => {
         { provide: DRIZZLE, useValue: db },
         { provide: GITHUB_CLIENT, useValue: githubClient },
         { provide: SENTIMENT_PROVIDER, useValue: sentimentProvider },
+        { provide: AlertsService, useValue: alertsService },
       ],
     }).compile();
     return moduleRef.get(RefreshService);
@@ -263,6 +278,67 @@ describeIfDb('RefreshService', () => {
     expect(row.reasons.some((r) => r.code === 'SENTIMENT_UNAVAILABLE')).toBe(
       true,
     );
+  });
+
+  describe('new-issue alerts', () => {
+    it('does not call the alerts webhook when the user has none configured', async () => {
+      const service = await buildService();
+
+      await service.refreshWatchedRepo(watchedRepoId, userId);
+
+      expect(alertsService.calls).toHaveLength(0);
+    });
+
+    it('notifies the webhook once for issues new to this refresh, and never again', async () => {
+      await db
+        .update(users)
+        .set({ alertWebhookUrl: 'https://hooks.slack.com/services/x' })
+        .where(eq(users.id, userId));
+      const service = await buildService();
+
+      await service.refreshWatchedRepo(watchedRepoId, userId);
+
+      expect(alertsService.calls).toHaveLength(1);
+      expect(alertsService.calls[0]).toMatchObject({
+        webhookUrl: 'https://hooks.slack.com/services/x',
+        issues: [expect.objectContaining({ owner: 'o', name: 'r', number: 1 })],
+      });
+
+      // Re-running the refresh sees the same issue #1 again - it's not new
+      // anymore, so it must not be re-alerted.
+      await pool.query(
+        `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
+        [watchedRepoId],
+      );
+      await service.refreshWatchedRepo(watchedRepoId, userId);
+
+      expect(alertsService.calls).toHaveLength(1);
+    });
+
+    it('only alerts for issues genuinely new to this refresh, not ones already scored', async () => {
+      await db
+        .update(users)
+        .set({ alertWebhookUrl: 'https://hooks.slack.com/services/x' })
+        .where(eq(users.id, userId));
+      githubClient.issues = [fakeIssue({ number: 1 })];
+      const service = await buildService();
+      await service.refreshWatchedRepo(watchedRepoId, userId);
+      alertsService.calls = [];
+      await pool.query(
+        `UPDATE watched_repos SET last_refreshed_at = NULL WHERE id = $1`,
+        [watchedRepoId],
+      );
+      // #1 is still there (not new), #2 is genuinely new this time.
+      githubClient.issues = [
+        fakeIssue({ number: 1 }),
+        fakeIssue({ number: 2 }),
+      ];
+
+      await service.refreshWatchedRepo(watchedRepoId, userId);
+
+      expect(alertsService.calls).toHaveLength(1);
+      expect(alertsService.calls[0].issues.map((i) => i.number)).toEqual([2]);
+    });
   });
 
   describe('scoreSingleIssue', () => {

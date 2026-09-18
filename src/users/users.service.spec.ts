@@ -166,4 +166,81 @@ describeIfDb('UsersService', () => {
       expect(downgraded.stripeCustomerId).toBe('cus_123');
     });
   });
+
+  describe('setAlertWebhookUrl', () => {
+    it('accepts a hooks.slack.com URL', async () => {
+      const user = await service.findOrCreateByGithub({
+        githubId: '123',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+
+      const updated = await service.setAlertWebhookUrl(
+        user.id,
+        'https://hooks.slack.com/services/T000/B000/xxxxxxxx',
+      );
+
+      expect(updated.alertWebhookUrl).toBe(
+        'https://hooks.slack.com/services/T000/B000/xxxxxxxx',
+      );
+    });
+
+    // dashboard.html.ts renders alertWebhookUrl straight into an HTML
+    // attribute with no escaping helper (see the comment on
+    // setAlertWebhookUrl) - this only holds because URL.href always
+    // percent-encodes HTML/JS-special characters, which this test pins.
+    it('stores the normalized URL.href, percent-encoding any HTML-special characters', async () => {
+      const user = await service.findOrCreateByGithub({
+        githubId: '123',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+
+      const updated = await service.setAlertWebhookUrl(
+        user.id,
+        'https://hooks.slack.com/services/x"><script>alert(1)</script>',
+      );
+
+      expect(updated.alertWebhookUrl).not.toContain('"');
+      expect(updated.alertWebhookUrl).not.toContain('<script>');
+    });
+
+    it('clears the webhook when given null', async () => {
+      const user = await service.findOrCreateByGithub({
+        githubId: '123',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+      await service.setAlertWebhookUrl(
+        user.id,
+        'https://hooks.slack.com/services/T000/B000/xxxxxxxx',
+      );
+
+      const cleared = await service.setAlertWebhookUrl(user.id, null);
+
+      expect(cleared.alertWebhookUrl).toBeNull();
+    });
+
+    // The server POSTs to whatever's stored here on every refresh (see
+    // RefreshService) - accepting an arbitrary URL would let a user point
+    // the server at an internal service or a cloud metadata endpoint
+    // (SSRF), so only Slack's own webhook host is allowed.
+    it('rejects a URL that is not hooks.slack.com', async () => {
+      const user = await service.findOrCreateByGithub({
+        githubId: '123',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+
+      await expect(
+        service.setAlertWebhookUrl(user.id, 'https://evil.example/steal'),
+      ).rejects.toThrow(/hooks\.slack\.com/);
+      await expect(
+        service.setAlertWebhookUrl(
+          user.id,
+          'http://hooks.slack.com/services/x',
+        ),
+      ).rejects.toThrow(/hooks\.slack\.com/);
+    });
+  });
 });

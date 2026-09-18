@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../database/database.module';
@@ -107,5 +107,42 @@ export class UsersService {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  // null clears the webhook (alerts off). The hooks.slack.com restriction
+  // lives here, not just in the DTO, so no other caller can slip an
+  // arbitrary URL past validation - see the SSRF note on the schema column.
+  async setAlertWebhookUrl(userId: string, webhookUrl: string | null) {
+    if (webhookUrl !== null && !isSlackWebhookUrl(webhookUrl)) {
+      throw new BadRequestException(
+        'alertWebhookUrl must be a Slack incoming-webhook URL (https://hooks.slack.com/services/...).',
+      );
+    }
+    // Persist URL.href, not the raw input string - href is guaranteed to
+    // have any HTML/JS-special characters (", <, >, ...) percent-encoded,
+    // which is what lets dashboard.html.ts render this value straight into
+    // an HTML attribute without its own escaping helper (same reasoning as
+    // githubLogin's charset restriction there, just enforced by the URL
+    // parser instead of GitHub).
+    const normalizedUrl = webhookUrl === null ? null : new URL(webhookUrl).href;
+    const [updated] = await this.db
+      .update(users)
+      .set({ alertWebhookUrl: normalizedUrl })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+}
+
+export function isSlackWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === 'hooks.slack.com' &&
+      parsed.pathname.startsWith('/services/')
+    );
+  } catch {
+    return false;
   }
 }

@@ -19,6 +19,9 @@ function fakeStripe(): Stripe {
     checkout: {
       sessions: { create: jest.fn() },
     },
+    billingPortal: {
+      sessions: { create: jest.fn() },
+    },
     webhooks: {
       constructEvent: jest.fn(),
     },
@@ -114,6 +117,45 @@ describeIfDb('BillingService', () => {
 
       await expect(service.createCheckoutSession('user-1')).rejects.toThrow(
         /did not return a checkout URL/,
+      );
+    });
+  });
+
+  describe('createPortalSession', () => {
+    it('creates a portal session for the customer on file', async () => {
+      const user = await usersService.findOrCreateByGithub({
+        githubId: '1',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+      await usersService.setTier(user.id, 'pro', {
+        stripeCustomerId: 'cus_123',
+      });
+      (stripe.billingPortal.sessions.create as jest.Mock).mockResolvedValue({
+        url: 'https://billing.stripe.com/session/abc',
+      });
+
+      const url = await service.createPortalSession(user.id);
+
+      expect(url).toBe('https://billing.stripe.com/session/abc');
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const createPortalMock = stripe.billingPortal.sessions
+        .create as jest.Mock;
+      expect(createPortalMock).toHaveBeenCalledWith(
+        expect.objectContaining({ customer: 'cus_123' }),
+      );
+    });
+
+    it('rejects a user with no Stripe customer id yet', async () => {
+      const user = await usersService.findOrCreateByGithub({
+        githubId: '1',
+        githubLogin: 'octocat',
+        avatarUrl: null,
+      });
+
+      await expect(service.createPortalSession(user.id)).rejects.toThrow(
+        /upgrade to Pro first/,
       );
     });
   });
